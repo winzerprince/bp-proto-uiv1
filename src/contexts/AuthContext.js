@@ -1,9 +1,9 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
-import { getUserById } from '@/lib/mock-data';
+import { createContext, useContext, useState, useEffect, startTransition } from 'react';
 
 const AuthContext = createContext(null);
+const STORAGE_KEY = 'bp-proto-session-user';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -11,30 +11,46 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Check for stored session
-    const storedUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-    if (storedUserId) {
-      const userData = getUserById(storedUserId);
-      setUser(userData);
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          startTransition(() => {
+            setUser(parsed);
+          });
+        } catch (err) {
+          console.warn('Failed to parse stored session user', err);
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
     }
-    setLoading(false);
+    startTransition(() => {
+      setLoading(false);
+    });
   }, []);
 
-  const login = (userId) => {
-    const userData = getUserById(userId);
-    if (userData) {
-      setUser(userData);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('userId', userId);
-      }
-      return true;
+  const login = ({ email, name, role }) => {
+    const normalizedRole = role === 'admin' ? 'system_admin' : role || 'general';
+    const userData = {
+      id: `session-${Date.now()}`,
+      name: name?.trim() || (email ? email.split('@')[0] : 'ゲストユーザー'),
+      email: email || 'guest@datagrid.com',
+      role: normalizedRole === 'system_admin' ? 'system_admin' : normalizedRole,
+      tenantId: normalizedRole === 'system_admin' ? null : 'tenant-1',
+    };
+
+    setUser(userData);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
     }
-    return false;
+    return true;
   };
 
   const logout = () => {
     setUser(null);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('userId');
+      localStorage.removeItem(STORAGE_KEY);
     }
   };
 

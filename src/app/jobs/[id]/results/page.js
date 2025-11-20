@@ -178,7 +178,7 @@ export default function JobResultsPage() {
   return (
     <div className="h-screen flex flex-col bg-[#F9FAFB]">
       {/* Fixed Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
@@ -248,7 +248,7 @@ export default function JobResultsPage() {
               }}
             >
               {/* Mock Blueprint */}
-              <div className="w-[800px] h-[600px] bg-gradient-to-br from-blue-50 to-gray-50 border-2 border-gray-300 flex items-center justify-center">
+              <div className="w-[800px] h-[600px] bg-linear-to-br from-blue-50 to-gray-50 border-2 border-gray-300 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-gray-400 mb-2">図面ビューア (モック)</p>
                   <p className="text-sm text-gray-500">
@@ -309,7 +309,7 @@ export default function JobResultsPage() {
         {/* Right: Results Table and Details */}
         <div className="w-2/5 flex flex-col bg-white overflow-hidden">
           {/* Filters */}
-          <div className="border-b border-gray-200 p-4 space-y-3 flex-shrink-0">
+          <div className="border-b border-gray-200 p-4 space-y-3 shrink-0">
             <Input
               placeholder="検索..."
               value={searchQuery}
@@ -368,7 +368,7 @@ export default function JobResultsPage() {
                   }`}
                 >
                   <div className="flex items-start gap-3 mb-2">
-                    <JudgmentIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    <JudgmentIcon className={`w-5 h-5 shrink-0 mt-0.5 ${
                       result.aiJudgment === 'OK' ? 'text-green-600' :
                       result.aiJudgment === 'NG' ? 'text-red-600' : 'text-amber-600'
                     }`} />
@@ -414,7 +414,7 @@ export default function JobResultsPage() {
 
           {/* Details Panel */}
           {selectedResult && (
-            <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-gray-50">
+            <div className="border-t border-gray-200 p-4 shrink-0 bg-gray-50">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">
                 アクション
               </h3>

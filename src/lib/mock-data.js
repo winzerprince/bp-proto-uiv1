@@ -71,6 +71,11 @@ export const jobStatuses = {
   failed: { label: '失敗', color: 'red' },
 };
 
+export const jobStatusOptions = Object.entries(jobStatuses).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+}));
+
 export const taskTypes = {
   INSPECTION: {
     id: 'INSPECTION',
@@ -94,6 +99,11 @@ export const taskTypes = {
     color: 'purple',
   },
 };
+
+export const taskTypeOptions = Object.values(taskTypes).map((type) => ({
+  value: type.id,
+  label: type.name,
+}));
 
 export const mockJobs = [
   {

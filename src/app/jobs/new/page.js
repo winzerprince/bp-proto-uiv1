@@ -2,11 +2,34 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Upload, FileText, CircleCheckBig, Search, X, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, CircleCheckBig, Search, X, AlertCircle, Plus, Tag } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Input, Textarea, Select, LoadingSpinner } from '@/components/ui';
 import { taskTypes } from '@/lib/mock-data';
+
+const INSPECTION_WORKFLOWS = [
+  { value: 'design_manufacturing_check', label: '設計-製造図面照合' },
+  { value: 'revision_comparison', label: '改版前後比較検図' },
+  { value: 'standard_compliance', label: '規格準拠チェック' },
+  { value: 'tolerance_verification', label: '公差検証' },
+  { value: 'material_spec_check', label: '材質・仕様確認' },
+];
+
+const BOM_WORKFLOWS = [
+  { value: 'assy_bom_auto', label: '組立図BOM自動生成' },
+  { value: 'part_bom_auto', label: '部品図BOM自動生成' },
+  { value: 'electrical_bom_auto', label: '電気部品表自動生成' },
+  { value: 'pcb_bom_auto', label: '基板部品表自動生成' },
+  { value: 'multi_level_bom', label: '階層BOM自動生成' },
+];
+
+const SEARCH_TAGS = [
+  { id: 'bom', label: 'BOM', type: 'table' },
+  { id: 'title_block', label: 'title_block', type: 'text' },
+  { id: 'dimension', label: 'dimension', type: 'text' },
+  { id: 'section_view', label: 'section_view', type: 'figure' },
+];
 
 function JobCreationForm() {
   const router = useRouter();
@@ -18,16 +41,26 @@ function JobCreationForm() {
   const [jobName, setJobName] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [priority, setPriority] = useState('medium');
+  const [workflow, setWorkflow] = useState('');
+  const [tags, setTags] = useState([]);
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [errors, setErrors] = useState({});
+  const [useSampleFiles, setUseSampleFiles] = useState(false);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/login');
     }
   }, [loading, isAuthenticated, router]);
+
+  // Reset workflow/tags when task type changes
+  // useEffect(() => {
+  //   setWorkflow('');
+  //   setTags([]);
+  //   setErrors({});
+  // }, [selectedTaskType]);
 
   if (loading || !isAuthenticated) {
     return (
@@ -82,8 +115,16 @@ function JobCreationForm() {
       newErrors.taskType = 'タスク種別を選択してください';
     }
     if (!jobName.trim()) {
-      newErrors.jobName = 'ジョブ名を入力してください';
+      newErrors.jobName = selectedTaskType === 'SEARCH' ? 'データセットタイトルを入力してください' : 'ジョブ名を入力してください';
     }
+    
+    if (selectedTaskType === 'INSPECTION' && !workflow) {
+      newErrors.workflow = 'ワークフローを選択してください';
+    }
+    if (selectedTaskType === 'BOM' && !workflow) {
+      newErrors.workflow = 'ワークフローを選択してください';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -103,8 +144,8 @@ function JobCreationForm() {
   };
 
   const handleSubmit = async () => {
-    if (files.length === 0 && selectedTaskType !== 'SEARCH') {
-      setErrors({ files: 'ファイルをアップロードしてください' });
+    if (files.length === 0 && !useSampleFiles) {
+      setErrors({ files: 'ファイルをアップロードするか、サンプルファイルを選択してください' });
       return;
     }
 
@@ -126,6 +167,14 @@ function JobCreationForm() {
     router.push(`/jobs/${jobId}`);
   };
 
+  const toggleTag = (tagId) => {
+    if (tags.includes(tagId)) {
+      setTags(tags.filter(t => t !== tagId));
+    } else {
+      setTags([...tags, tagId]);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto">
@@ -139,7 +188,7 @@ function JobCreationForm() {
             戻る
           </button>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            新しいジョブを作成
+            {selectedTaskType === 'SEARCH' ? '新しいデータセットを作成' : '新しいジョブを作成'}
           </h1>
           <p className="text-gray-600">
             ステップ {step} / 2
@@ -158,12 +207,12 @@ function JobCreationForm() {
             </div>
           </div>
           <div className="flex justify-between mt-2">
-            <span className="text-sm text-gray-600">タスク選択</span>
+            <span className="text-sm text-gray-600">タスク設定</span>
             <span className="text-sm text-gray-600">ファイルアップロード</span>
           </div>
         </div>
 
-        {/* Step 1: Task Selection */}
+        {/* Step 1: Task Selection & Configuration */}
         {step === 1 && (
           <Card className="p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">
@@ -178,19 +227,23 @@ function JobCreationForm() {
                   <button
                     key={task.id}
                     onClick={() => {
-                      setSelectedTaskType(task.id);
-                      setErrors({ ...errors, taskType: '' });
+                      if (selectedTaskType !== task.id) {
+                        setSelectedTaskType(task.id);
+                        setWorkflow('');
+                        setTags([]);
+                        setErrors({});
+                      }
                     }}
-                    className={`p-6 border-2 rounded-lg transition-all ${
+                    className={`p-6 border-2 rounded-lg transition-all duration-200 text-left ${
                       isSelected
-                        ? 'border-[#004080] bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-[#004080] bg-blue-50 shadow-md scale-105'
+                        : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
                     }`}
                   >
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 ${
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-200 ${
                       task.id === 'INSPECTION' ? 'bg-green-100' :
                       task.id === 'BOM' ? 'bg-blue-100' : 'bg-purple-100'
-                    }`}>
+                    } ${isSelected ? 'scale-110' : ''}`}>
                       <Icon className={`w-6 h-6 ${
                         task.id === 'INSPECTION' ? 'text-green-600' :
                         task.id === 'BOM' ? 'text-blue-600' : 'text-purple-600'
@@ -206,36 +259,114 @@ function JobCreationForm() {
               <p className="text-sm text-red-600 mb-4">{errors.taskType}</p>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-6 border-t border-gray-200 pt-6">
               <Input
-                label="ジョブ名"
+                label={selectedTaskType === 'SEARCH' ? "データセットタイトル" : "ジョブ名"}
                 value={jobName}
                 onChange={(e) => {
                   setJobName(e.target.value);
                   setErrors({ ...errors, jobName: '' });
                 }}
-                placeholder="例: 製品A - 検図"
+                placeholder={selectedTaskType === 'SEARCH' ? "例: Q4 2025 技術図面解析" : "例: 製品A - 検図"}
                 error={errors.jobName}
                 required
               />
 
-              <Textarea
-                label="説明（任意）"
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="ジョブの詳細を入力してください"
-                rows={3}
-              />
+              {/* Workflow Selection for INSPECTION */}
+              {selectedTaskType === 'INSPECTION' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ワークフロー <span className="text-red-500">*</span>
+                  </label>
+                  <Select
+                    value={workflow}
+                    onChange={(e) => {
+                      setWorkflow(e.target.value);
+                      setErrors({ ...errors, workflow: '' });
+                    }}
+                    error={errors.workflow}
+                  >
+                    <option value="">選択してください</option>
+                    {INSPECTION_WORKFLOWS.map(wf => (
+                      <option key={wf.value} value={wf.value}>{wf.label}</option>
+                    ))}
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">検図の目的に応じたワークフローを選択してください</p>
+                </div>
+              )}
 
-              <Select
-                label="優先度"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-              >
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
-              </Select>
+              {/* Workflow Selection for BOM */}
+              {selectedTaskType === 'BOM' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ワークフロー <span className="text-red-500">*</span>
+                  </label>
+                  <Select
+                    value={workflow}
+                    onChange={(e) => {
+                      setWorkflow(e.target.value);
+                      setErrors({ ...errors, workflow: '' });
+                    }}
+                    error={errors.workflow}
+                  >
+                    <option value="">選択してください</option>
+                    {BOM_WORKFLOWS.map(wf => (
+                      <option key={wf.value} value={wf.value}>{wf.label}</option>
+                    ))}
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">図面の種類や構成に応じたワークフローを選択してください</p>
+                </div>
+              )}
+
+              {/* Element Tags for SEARCH */}
+              {selectedTaskType === 'SEARCH' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    要素タグ
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {SEARCH_TAGS.map(tag => (
+                      <button
+                        key={tag.id}
+                        onClick={() => toggleTag(tag.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-lg transition-all duration-200 ${
+                          tags.includes(tag.id)
+                            ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-sm scale-105'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                        }`}
+                      >
+                        <span>{tags.includes(tag.id) ? '✓ ' : '+ '}{tag.label}</span>
+                        <span className="text-xs opacity-60">({tag.type})</span>
+                      </button>
+                    ))}
+                    <button className="px-3 py-1.5 text-sm border border-dashed border-gray-300 text-gray-500 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                      + 新規タグ
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedTaskType !== 'SEARCH' && (
+                <>
+                  <Textarea
+                    label="説明（任意）"
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="ジョブの詳細を入力してください"
+                    rows={3}
+                  />
+
+                  <Select
+                    label="優先度"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                  >
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                  </Select>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
@@ -256,17 +387,36 @@ function JobCreationForm() {
               ファイルをアップロード
             </h2>
 
+            {/* Sample Files Option */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                サンプルファイルを使用（デモ用）
+              </h3>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 bg-white rounded border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={useSampleFiles}
+                    onChange={(e) => setUseSampleFiles(e.target.checked)}
+                    className="w-4 h-4 text-[#004080] rounded focus:ring-2 focus:ring-[#004080]"
+                  />
+                  <span className="text-sm text-gray-700 flex-1">デモ用サンプルセット (3ファイル)</span>
+                </label>
+              </div>
+            </div>
+
             {/* Drag and Drop Zone */}
             <div className="mb-6">
               <label className="block w-full">
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp"
+                  accept={selectedTaskType === 'SEARCH' ? "image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp" : ".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.xlsx,.xls"}
                   onChange={handleFileSelect}
                   className="hidden"
                 />
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-[#004080] hover:bg-blue-50 transition-colors cursor-pointer">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-[#004080] hover:bg-blue-50 transition-all duration-200 cursor-pointer">
                   <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-lg font-medium text-gray-900 mb-2">
                     ファイルをドラッグ&ドロップ
@@ -275,7 +425,9 @@ function JobCreationForm() {
                     またはクリックしてファイルを選択
                   </p>
                   <p className="text-xs text-gray-500">
-                    対応形式: PDF, PNG, JPEG, TIFF, BMP (複数ページPDF対応)
+                    {selectedTaskType === 'SEARCH' 
+                      ? '対応形式: JPG, PNG, GIF, BMP, TIFF, WebP (最大1000ファイル)'
+                      : '対応形式: PDF, PNG, JPEG, TIFF, BMP, Excel (最大10ファイル)'}
                   </p>
                 </div>
               </label>
@@ -291,10 +443,10 @@ function JobCreationForm() {
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200"
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        <FileText className="w-5 h-5 text-gray-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {file.name}
@@ -314,7 +466,7 @@ function JobCreationForm() {
                       </div>
                       <button
                         onClick={() => handleRemoveFile(file.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all duration-200"
                         disabled={uploading}
                       >
                         <X className="w-5 h-5" />
@@ -327,10 +479,26 @@ function JobCreationForm() {
 
             {errors.files && (
               <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 mb-6">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errors.files}</span>
               </div>
             )}
+
+            {/* Custom Fields / Items */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {selectedTaskType === 'INSPECTION' ? 'カスタム検図項目（任意）' : 'カスタムフィールド（任意）'}
+              </label>
+              <button className="text-sm text-[#004080] hover:text-blue-700 font-medium flex items-center gap-1">
+                <Plus className="w-4 h-4" />
+                {selectedTaskType === 'INSPECTION' ? 'カスタム検図項目を追加' : 'カスタムフィールドを追加'}
+              </button>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedTaskType === 'INSPECTION' 
+                  ? '標準検図項目に追加のチェック項目を定義できます' 
+                  : '追加のデータフィールドを定義できます'}
+              </p>
+            </div>
 
             {/* PNG Conversion Option */}
             {selectedTaskType !== 'SEARCH' && (

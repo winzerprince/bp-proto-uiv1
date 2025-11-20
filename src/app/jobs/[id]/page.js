@@ -250,7 +250,7 @@ export default function JobDetailPage() {
             {job.status === 'failed' && job.error && (
               <Card className="p-6 bg-red-50 border-red-200">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-sm font-semibold text-red-900 mb-1">
                       エラーが発生しました
@@ -377,7 +377,7 @@ export default function JobDetailPage() {
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        <FileText className="w-5 h-5 text-gray-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {file.name}
@@ -387,7 +387,7 @@ export default function JobDetailPage() {
                           </p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="gap-1 flex-shrink-0">
+                      <Button variant="ghost" size="sm" className="gap-1 shrink-0">
                         <Download className="w-4 h-4" />
                         ダウンロード
                       </Button>

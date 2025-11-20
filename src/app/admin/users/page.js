@@ -195,7 +195,7 @@ export default function UserManagementPage() {
                     <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 bg-gradient-to-br from-[#004080] to-[#0066CC] rounded-full flex items-center justify-center text-white font-medium">
+                          <div className="w-10 h-10 bg-linear-to-br from-[#004080] to-[#0066CC] rounded-full flex items-center justify-center text-white font-medium">
                             {u.name.charAt(0)}
                           </div>
                           <div className="ml-4">

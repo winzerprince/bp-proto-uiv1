@@ -171,7 +171,7 @@ export default function DashboardPage() {
                       に更新
                     </p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 ml-4 flex-shrink-0" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 ml-4 shrink-0" />
                 </div>
               </Link>
             ))}
