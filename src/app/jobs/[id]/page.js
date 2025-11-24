@@ -230,13 +230,13 @@ export default function JobDetailPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">進捗率</span>
                     <span className="text-lg font-bold text-[#004080]">
-                      {Math.floor(liveProgress)}%
+                      {Math.round(liveProgress)}%
                     </span>
                   </div>
                   <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-[#004080] transition-all duration-500"
-                      style={{ width: `${liveProgress}%` }}
+                      style={{ width: `${Math.round(liveProgress)}%` }}
                     />
                   </div>
                   <p className="text-xs text-gray-500 text-center">

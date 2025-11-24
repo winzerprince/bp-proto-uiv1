@@ -110,9 +110,9 @@ export default function UserManagementPage() {
 
   const getRoleBadge = (role) => {
     const badges = {
-      system_admin: { label: 'システム管理者', color: 'bg-purple-100 text-purple-700' },
-      tenant_admin: { label: 'テナント管理者', color: 'bg-blue-100 text-blue-700' },
-      general: { label: '一般ユーザー', color: 'bg-gray-100 text-gray-700' },
+      system_admin: { label: 'システム管理者', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+      tenant_admin: { label: 'テナント管理者', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+      general: { label: '一般ユーザー', color: 'bg-muted text-foreground-light' },
     };
     const badge = badges[role] || badges.general;
     return (
@@ -128,10 +128,10 @@ export default function UserManagementPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
               ユーザー管理
             </h1>
-            <p className="text-gray-600">
+            <p className="text-foreground-light">
               {filteredUsers.length}人のユーザー
             </p>
           </div>
@@ -169,49 +169,49 @@ export default function UserManagementPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                     ユーザー
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                     メールアドレス
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                     テナント
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                     ロール
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-foreground-light uppercase tracking-wider">
                     操作
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-card divide-y divide-border">
                 {filteredUsers.map((u) => {
                   const tenant = u.tenantId ? getTenantById(u.tenantId) : null;
                   return (
-                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={u.id} className="hover:bg-accent transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 bg-linear-to-br from-[#004080] to-[#0066CC] rounded-full flex items-center justify-center text-white font-medium">
+                          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
                             {u.name.charAt(0)}
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-foreground">
                               {u.name}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 text-sm text-foreground-light">
                           <Mail className="w-4 h-4" />
                           {u.email}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground-light">
                         {tenant ? tenant.name : 'システム'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

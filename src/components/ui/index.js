@@ -32,7 +32,7 @@ export const Button = forwardRef(({
   return (
     <button
       ref={ref}
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} rounded-md ${className}`}
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} rounded-sm ${className}`}
       disabled={disabled || loading}
       {...props}
     >
@@ -52,14 +52,14 @@ Button.displayName = 'Button';
 // Card Component - Supabase Style
 export const Card = ({ children, className = '', variant = 'default', hover = false, ...props }) => {
   const variants = {
-    default: "bg-surface-100 border border-border",
+    default: "bg-card border border-border",
     elevated: "bg-card border border-border shadow-sm",
     flat: "bg-transparent",
   };
   
   return (
     <div
-      className={`rounded-md p-6 transition-all ${variants[variant]} ${hover ? 'hover:shadow-md hover:border-border-strong' : ''} ${className}`}
+      className={`rounded-sm p-6 transition-all ${variants[variant]} ${hover ? 'hover:shadow-md hover:border-border-strong' : ''} ${className}`}
       {...props}
     >
       {children}
@@ -72,30 +72,35 @@ Card.Header = ({ children, className = '', ...props }) => (
     {children}
   </div>
 );
+Card.Header.displayName = 'Card.Header';
 
 Card.Title = ({ children, className = '', ...props }) => (
   <h3 className={`text-lg font-semibold text-foreground ${className}`} {...props}>
     {children}
   </h3>
 );
+Card.Title.displayName = 'Card.Title';
 
 Card.Description = ({ children, className = '', ...props }) => (
   <p className={`text-sm text-foreground-light mt-1 ${className}`} {...props}>
     {children}
   </p>
 );
+Card.Description.displayName = 'Card.Description';
 
 Card.Content = ({ children, className = '', ...props }) => (
   <div className={`${className}`} {...props}>
     {children}
   </div>
 );
+Card.Content.displayName = 'Card.Content';
 
 Card.Footer = ({ children, className = '', ...props }) => (
   <div className={`mt-6 flex items-center gap-3 ${className}`} {...props}>
     {children}
   </div>
 );
+Card.Footer.displayName = 'Card.Footer';
 
 // Input Component - Supabase Style
 export const Input = forwardRef(({ 
@@ -116,7 +121,7 @@ export const Input = forwardRef(({
       <input
         ref={ref}
         className={`
-          flex h-9 w-full rounded-md border border-input
+          flex h-9 w-full rounded-sm border border-input
           bg-transparent px-3 py-1 text-sm
           shadow-sm transition-colors
           file:border-0 file:bg-transparent file:text-sm file:font-medium
@@ -157,7 +162,7 @@ export const Select = forwardRef(({
       <select
         ref={ref}
         className={`
-          flex h-9 w-full rounded-md border border-input
+          flex h-9 w-full rounded-sm border border-input
           bg-transparent px-3 py-1 text-sm
           shadow-sm transition-colors
           focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring
@@ -197,7 +202,7 @@ export const Textarea = forwardRef(({
       <textarea
         ref={ref}
         className={`
-          flex min-h-[80px] w-full rounded-md border border-input
+          flex min-h-[80px] w-full rounded-sm border border-input
           bg-transparent px-3 py-2 text-sm
           shadow-sm transition-colors
           placeholder:text-muted-foreground

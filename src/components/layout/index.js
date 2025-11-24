@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { 
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import {
   Home,
   ListChecks,
   FileSearch,
@@ -15,145 +16,270 @@ import {
   Menu,
   X,
   LogOut,
-} from 'lucide-react';
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  Moon,
+  Sun,
+} from "lucide-react";
 
 // Supabase-Style Sidebar with icon-only collapsed state
 export function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
-  
-  const taskType = searchParams.get('type');
-  
+  const [sidebarMode, setSidebarMode] = useState('hover'); // 'always-open', 'hover'
+  const [showSettings, setShowSettings] = useState(false);
+  const [jobsExpanded, setJobsExpanded] = useState(true);
+
+  // Load sidebarMode from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebarMode');
+    if (saved === 'always-open' || saved === 'hover') {
+      setSidebarMode(saved);
+      if (saved === 'always-open') {
+        setIsExpanded(true);
+      }
+    }
+  }, []);
+
+  // Persist sidebarMode to localStorage
+  const updateSidebarMode = (mode) => {
+    setSidebarMode(mode);
+    localStorage.setItem('sidebarMode', mode);
+  };
+
+  const taskType = searchParams.get("type");
+
+  // Update isExpanded based on sidebar mode
+  const shouldBeExpanded = sidebarMode === 'always-open' || (sidebarMode === 'hover' && isExpanded);
+
+  const handleMouseEnter = () => {
+    if (sidebarMode === 'hover') {
+      setIsExpanded(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (sidebarMode === 'hover') {
+      setIsExpanded(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
+
   const isActive = (href, matchType = null) => {
     if (matchType) {
-      const isJobsPage = pathname === '/jobs' || pathname.startsWith('/jobs/');
-      return isJobsPage && (taskType === matchType || (!taskType && matchType === 'all'));
+      const isJobsPage = pathname === "/jobs" || pathname.startsWith("/jobs/");
+      return (
+        isJobsPage &&
+        (taskType === matchType || (!taskType && matchType === "all"))
+      );
     }
-    return pathname === href || pathname.startsWith(href + '/');
+    return pathname === href || pathname.startsWith(href + "/");
   };
-  
+
   const navItems = [
     {
       icon: Home,
-      label: 'ダッシュボード',
-      href: '/dashboard',
-      matchType: null
+      label: "ダッシュボード",
+      href: "/dashboard",
+      matchType: null,
     },
     {
       icon: ListChecks,
-      label: 'ジョブ一覧',
-      href: '/jobs',
-      matchType: 'all'
-    },
-    {
-      icon: FileSearch,
-      label: '検図',
-      href: '/jobs?type=INSPECTION',
-      matchType: 'INSPECTION'
-    },
-    {
-      icon: FileText,
-      label: 'BOM生成',
-      href: '/jobs?type=BOM',
-      matchType: 'BOM'
-    },
-    {
-      icon: SearchIcon,
-      label: '図面検索',
-      href: '/jobs?type=SEARCH',
-      matchType: 'SEARCH'
+      label: "ジョブ",
+      href: "/jobs",
+      matchType: "all",
+      isParent: true,
+      children: [
+        {
+          icon: FileSearch,
+          label: "検図",
+          href: "/jobs?type=INSPECTION",
+          matchType: "INSPECTION",
+        },
+        {
+          icon: FileText,
+          label: "BOM生成",
+          href: "/jobs?type=BOM",
+          matchType: "BOM",
+        },
+        {
+          icon: SearchIcon,
+          label: "図面検索",
+          href: "/jobs?type=SEARCH",
+          matchType: "SEARCH",
+        },
+      ],
     },
   ];
-  
-  const adminItems = (user?.role === 'tenant_admin' || user?.role === 'system_admin') ? [
-    {
-      icon: Users,
-      label: 'ユーザー管理',
-      href: '/admin/users',
-      matchType: null
-    },
-    {
-      icon: Settings,
-      label: '設定',
-      href: '/admin/settings',
-      matchType: null
-    },
-  ] : [];
-  
+
+  const adminItems =
+    user?.role === "tenant_admin" || user?.role === "system_admin"
+      ? [
+          {
+            icon: Users,
+            label: "ユーザー管理",
+            href: "/admin/users",
+            matchType: null,
+          },
+          {
+            icon: Settings,
+            label: "設定",
+            href: "/admin/settings",
+            matchType: null,
+          },
+        ]
+      : [];
+
   return (
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
         />
       )}
-      
-      {/* Sidebar - Icon-only on desktop, full on mobile or when expanded */}
-      <aside 
+
+      {/* Sidebar - Fixed icon column with expandable content panel */}
+      <aside
         className={`
           fixed left-0 top-0 h-full bg-background border-r border-border z-50
-          transition-all duration-200 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          transition-[width,transform] duration-200 ease-in-out
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
-          ${isExpanded ? 'w-[208px]' : 'w-[208px] lg:w-[52px]'}
-          flex flex-col
+          ${shouldBeExpanded || isOpen ? "w-[208px]" : "w-[208px] lg:w-[52px]"}
+          flex flex-col overflow-hidden
         `}
-        onMouseEnter={() => setIsExpanded(true)}
-        onMouseLeave={() => setIsExpanded(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {/* Logo/Brand */}
-        <div className="h-[49px] flex items-center justify-between px-4 border-b border-border shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
+        <div className="h-[49px] flex items-center border-b border-border shrink-0 px-1.5 lg:px-0">
+          <Link href="/welcome" className="flex items-center gap-2 w-full lg:pl-1.5">
+            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs shrink-0 lg:ml-2.5">
               BP
             </div>
-            <span className={`font-semibold text-sm text-foreground transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0'} ${isOpen ? 'opacity-100' : ''}`}>
+            <span
+              className={`font-semibold text-sm text-foreground whitespace-nowrap transition-[opacity,width] duration-100 ${
+                shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+              }`}
+            >
               Blueprint AI
             </span>
           </Link>
           <button
             onClick={onClose}
-            className="lg:hidden text-foreground-light hover:text-foreground"
+            className="lg:hidden text-foreground-light hover:text-foreground ml-auto"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2">
-          <ul className="space-y-1">
+        <nav className="flex-1 overflow-y-auto py-4 px-2 lg:px-0">
+          <ul className="space-y-1 lg:pl-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href, item.matchType);
-              
+
               return (
                 <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onClose}
-                    className={`
-                      flex items-center gap-3 px-3 py-2 rounded-md text-sm
-                      transition-colors
-                      ${active 
-                        ? 'bg-surface-accent text-foreground' 
-                        : 'text-foreground-light hover:bg-surface-accent/50 hover:text-foreground'
-                      }
-                    `}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span className={`transition-opacity whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0'} ${isOpen ? 'opacity-100' : ''}`}>
-                      {item.label}
-                    </span>
-                  </Link>
+                  {item.isParent ? (
+                    <>
+                      <button
+                        onClick={() => setJobsExpanded(!jobsExpanded)}
+                        className={`
+                          flex items-center w-full gap-2 rounded-sm text-sm py-2 px-2
+                          transition-[background-color,color] duration-200
+                          ${
+                            active
+                              ? "bg-surface-accent text-foreground"
+                              : "text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
+                          }
+                        `}
+                      >
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span
+                          className={`flex-1 text-left whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
+                            shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 shrink-0 transition-[opacity,transform] duration-100 ${
+                          shouldBeExpanded || isOpen ? "opacity-100" : "opacity-0 lg:opacity-0"
+                        } ${jobsExpanded ? "" : "rotate-180"}`} />
+                      </button>
+                      {jobsExpanded && (shouldBeExpanded || isOpen) && (
+                        <ul className="mt-1 space-y-1 ml-7">
+                          {item.children?.map((child) => {
+                            const ChildIcon = child.icon;
+                            const childActive = isActive(child.href, child.matchType);
+                            
+                            return (
+                              <li key={child.href}>
+                                <Link
+                                  href={child.href}
+                                  onClick={onClose}
+                                  className={`
+                                    flex items-center gap-2 px-2 py-2 rounded-sm text-sm
+                                    transition-colors
+                                    ${
+                                      childActive
+                                        ? "bg-surface-accent text-foreground"
+                                        : "text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
+                                    }
+                                  `}
+                                >
+                                  <ChildIcon className="w-4 h-4 shrink-0" />
+                                  <span className="overflow-hidden whitespace-nowrap transition-opacity duration-100">
+                                    {child.label}
+                                  </span>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      onClick={onClose}
+                      className={`
+                        flex items-center gap-2 rounded-sm text-sm py-2 px-2
+                        transition-[background-color,color] duration-200
+                        ${
+                          active
+                            ? "bg-surface-accent text-foreground"
+                            : "text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
+                        }
+                      `}
+                    >
+                      <Icon className="w-5 h-5 shrink-0" />
+                      <span
+                        className={`whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
+                          shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </Link>
+                  )}
                 </li>
               );
             })}
           </ul>
-          
+
           {/* Admin section */}
           {adminItems.length > 0 && (
             <>
@@ -162,23 +288,28 @@ export function Sidebar({ isOpen, onClose }) {
                 {adminItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.href);
-                  
+
                   return (
                     <li key={item.href}>
                       <Link
                         href={item.href}
                         onClick={onClose}
                         className={`
-                          flex items-center gap-3 px-3 py-2 rounded-md text-sm
-                          transition-colors
-                          ${active 
-                            ? 'bg-surface-accent text-foreground' 
-                            : 'text-foreground-light hover:bg-surface-accent/50 hover:text-foreground'
+                          flex items-center gap-2 rounded-sm text-sm py-2 px-2
+                          transition-[background-color,color] duration-200
+                          ${
+                            active
+                              ? "bg-surface-accent text-foreground"
+                              : "text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
                           }
                         `}
                       >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        <span className={`transition-opacity whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0'} ${isOpen ? 'opacity-100' : ''}`}>
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span
+                          className={`whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
+                            shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                          }`}
+                        >
                           {item.label}
                         </span>
                       </Link>
@@ -189,18 +320,107 @@ export function Sidebar({ isOpen, onClose }) {
             </>
           )}
         </nav>
-        
-        {/* User section */}
+
+        {/* User section with logout and settings */}
         {user && (
           <div className="border-t border-border p-2">
-            <div className={`flex items-center gap-3 px-3 py-2 text-sm text-foreground-light`}>
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium text-xs shrink-0">
-                {user.name?.charAt(0) || 'U'}
+            {/* User info */}
+            <div className="flex items-center gap-2 py-2 rounded-sm px-2">
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium text-xs shrink-0">
+                {user.name?.charAt(0) || "U"}
               </div>
-              <div className={`flex-1 min-w-0 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0'} ${isOpen ? 'opacity-100' : ''}`}>
-                <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
-                <div className="text-xs text-foreground-lighter truncate">{user.email}</div>
+              <div
+                className={`flex-1 min-w-0 overflow-hidden transition-[opacity,width] duration-100 ${
+                  shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                }`}
+              >
+                <div className="text-xs font-medium text-foreground truncate">
+                  {user.name}
+                </div>
+                <div className="text-xs text-foreground-lighter truncate">
+                  {user.email}
+                </div>
               </div>
+            </div>
+
+            {/* Settings menu */}
+            <div className="space-y-1 mt-1">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="flex items-center gap-2 rounded-sm text-sm text-foreground-light hover:bg-surface-accent/50 hover:text-foreground transition-[background-color,color] duration-200 w-full py-2 px-2"
+                title="設定"
+              >
+                <SlidersHorizontal className="w-5 h-5 shrink-0" />
+                <span
+                  className={`flex-1 text-left whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
+                    shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                  }`}
+                >
+                  設定
+                </span>
+                <ChevronDown className={`w-4 h-4 shrink-0 transition-[opacity,transform] duration-100 ${
+                  shouldBeExpanded || isOpen ? "opacity-100" : "opacity-0 lg:opacity-0"
+                } ${showSettings ? "" : "rotate-180"}`} />
+              </button>
+
+              {showSettings && (shouldBeExpanded || isOpen) && (
+                <div className="ml-7 space-y-1">
+                  <button
+                    onClick={() => updateSidebarMode('hover')}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-sm text-xs w-full transition-colors ${
+                      sidebarMode === 'hover' 
+                        ? 'bg-surface-accent text-foreground' 
+                        : 'text-foreground-light hover:bg-surface-accent/50 hover:text-foreground'
+                    }`}
+                  >
+                    ホバーで表示
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateSidebarMode('always-open');
+                      setIsExpanded(true);
+                    }}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-sm text-xs w-full transition-colors ${
+                      sidebarMode === 'always-open' 
+                        ? 'bg-surface-accent text-foreground' 
+                        : 'text-foreground-light hover:bg-surface-accent/50 hover:text-foreground'
+                    }`}
+                  >
+                    常に開く
+                  </button>
+                  <button
+                    onClick={toggleTheme}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-sm text-xs w-full transition-colors text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
+                  >
+                    {theme === 'dark' ? (
+                      <>
+                        <Sun className="w-3.5 h-3.5 shrink-0" />
+                        <span>ライトモード</span>
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="w-3.5 h-3.5 shrink-0" />
+                        <span>ダークモード</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 rounded-sm text-sm text-foreground-light hover:bg-destructive/10 hover:text-destructive transition-[background-color,color] duration-200 w-full py-2 px-2"
+                title="ログアウト"
+              >
+                <LogOut className="w-5 h-5 shrink-0" />
+                <span
+                  className={`whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
+                    shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                  }`}
+                >
+                  ログアウト
+                </span>
+              </button>
             </div>
           </div>
         )}
@@ -211,14 +431,19 @@ export function Sidebar({ isOpen, onClose }) {
 
 // Supabase-Style Header
 export function Header({ onMenuClick }) {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  
-  const handleLogout = () => {
-    logout();
-    router.push('/');
+  const { user } = useAuth();
+
+  const getRoleLabel = (role) => {
+    const roleMap = {
+      general: { label: "一般ユーザー", variant: "secondary" },
+      tenant_admin: { label: "テナント管理者", variant: "default" },
+      system_admin: { label: "システム管理者", variant: "destructive" },
+    };
+    return roleMap[role] || roleMap["general"];
   };
-  
+
+  const roleInfo = user ? getRoleLabel(user.role) : null;
+
   return (
     <header className="h-[49px] bg-background border-b border-border flex items-center justify-between px-4 shrink-0">
       {/* Left side */}
@@ -229,32 +454,19 @@ export function Header({ onMenuClick }) {
         >
           <Menu className="w-5 h-5" />
         </button>
-        
-        {/* Search button (placeholder) */}
-        <button className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-background hover:bg-surface-accent text-foreground-lighter text-sm transition-colors">
-          <SearchIcon className="w-4 h-4" />
-          <span>検索...</span>
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-foreground-lighter">
-            <span className="text-xs">⌘</span>K
-          </kbd>
-        </button>
       </div>
-      
+
       {/* Right side */}
       <div className="flex items-center gap-3">
         {/* User menu */}
         {user && (
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline text-sm text-foreground-light">
-              {user.name}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-foreground-light hover:bg-surface-accent hover:text-foreground transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">ログアウト</span>
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="text-sm text-foreground-light">{user.name}</span>
+              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors bg-primary/10 text-primary border-primary/20">
+                {roleInfo.label}
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -265,14 +477,47 @@ export function Header({ onMenuClick }) {
 // Main Layout Wrapper
 export function MainLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+  const [sidebarMode, setSidebarMode] = useState('hover');
+
+  // Sync with sidebar mode from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebarMode');
+    if (saved) {
+      setSidebarMode(saved);
+    }
+    
+    // Listen for changes in localStorage (in case sidebar updates it)
+    const handleStorage = () => {
+      const updated = localStorage.getItem('sidebarMode');
+      if (updated) {
+        setSidebarMode(updated);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorage);
+    // Also poll every 100ms for same-tab updates
+    const interval = setInterval(() => {
+      const updated = localStorage.getItem('sidebarMode');
+      if (updated && updated !== sidebarMode) {
+        setSidebarMode(updated);
+      }
+    }, 100);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
+  }, [sidebarMode]);
+
+  const contentMargin = sidebarMode === 'always-open' ? 'lg:ml-[208px]' : 'lg:ml-[52px]';
+
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      
-      <div className="flex-1 flex flex-col lg:ml-[52px] w-full">
+
+      <div className={`flex-1 flex flex-col ${contentMargin} w-full transition-[margin] duration-200`}>
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        
+
         <main className="flex-1 overflow-auto">
           <div className="max-w-[1400px] mx-auto p-4 lg:p-6 w-full">
             {children}

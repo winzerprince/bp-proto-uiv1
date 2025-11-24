@@ -79,10 +79,10 @@ export default function JobsListContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
               ジョブ一覧
             </h1>
-            <p className="text-gray-600">
+            <p className="text-foreground-light">
               {filteredJobs.length}件のジョブ
             </p>
           </div>
@@ -139,13 +139,13 @@ export default function JobsListContent() {
         {/* Jobs Table */}
         {filteredJobs.length === 0 ? (
           <Card className="p-12 text-center">
-            <div className="text-gray-400 mb-4">
+            <div className="text-foreground-lighter mb-4">
               <MdFilterAlt className="w-16 h-16 mx-auto" />
             </div>
-            <p className="text-gray-600 mb-2 font-medium">
+            <p className="text-foreground mb-2 font-medium">
               ジョブが見つかりません
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-foreground-light">
               フィルターを変更するか、新しいジョブを作成してください
             </p>
           </Card>
@@ -153,40 +153,40 @@ export default function JobsListContent() {
           <div className="overflow-x-auto">
             <Card className="p-0">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                       ジョブ名
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                       タスクタイプ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                       ステータス
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                       進捗
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                       更新日時
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-medium text-foreground-light uppercase tracking-wider">
                       アクション
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y divide-border">
                   {filteredJobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50 transition-all duration-200 hover:shadow-sm"
+                    <tr key={job.id} className="hover:bg-accent transition-all duration-200 hover:shadow-sm"
                       onClick={() => router.push(`/jobs/${job.id}`)}
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="px-6 py-4">
                         <div>
-                          <Link href={`/jobs/${job.id}`} className="font-medium text-gray-900 hover:text-[#004080]">
+                          <Link href={`/jobs/${job.id}`} className="font-medium text-foreground hover:text-primary">
                             {job.name}
                           </Link>
-                          <p className="text-sm text-gray-500">ID: {job.id}</p>
+                          <p className="text-sm text-foreground-light">ID: {job.id}</p>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -199,22 +199,22 @@ export default function JobsListContent() {
                         {job.status === 'processing' ? (
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-[#004080] transition-all duration-300"
+                                  className="h-full bg-primary transition-all duration-300"
                                   style={{ width: `${job.progress || 0}%` }}
                                 />
                               </div>
-                              <span className="text-xs text-gray-600 font-medium">
+                              <span className="text-xs text-foreground-light font-medium">
                                 {job.progress || 0}%
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-500">-</span>
+                          <span className="text-sm text-foreground-light">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-foreground-light">
                         {new Date(job.updatedAt).toLocaleString('ja-JP')}
                       </td>
                       <td className="px-6 py-4 text-right">

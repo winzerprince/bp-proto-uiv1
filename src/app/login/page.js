@@ -18,7 +18,7 @@ export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [roleMode, setRoleMode] = useState('user');
+  const [role, setRole] = useState('general');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -44,7 +44,7 @@ export default function LoginPage() {
       login({
         email,
         name: email.split('@')[0] || 'ゲストユーザー',
-        role: roleMode === 'admin' ? 'system_admin' : 'general',
+        role: role,
       });
       router.push('/dashboard');
     } catch (err) {
@@ -105,13 +105,13 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-gray-900 mb-2">開発者向けロール切替</p>
-              <div className="grid grid-cols-2 gap-3">
+              <p className="text-sm font-semibold text-gray-900 mb-2">ユーザーロール選択</p>
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => setRoleMode('user')}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    roleMode === 'user'
+                  onClick={() => setRole('general')}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
+                    role === 'general'
                       ? 'border-[#004080] bg-blue-50 text-[#004080]'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
@@ -121,19 +121,33 @@ export default function LoginPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRoleMode('admin')}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    roleMode === 'admin'
+                  onClick={() => setRole('tenant_admin')}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
+                    role === 'tenant_admin'
                       ? 'border-[#004080] bg-blue-50 text-[#004080]'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
                 >
                   <MdAdminPanelSettings className="w-5 h-5" />
-                  管理者
+                  テナント管理者
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('system_admin')}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
+                    role === 'system_admin'
+                      ? 'border-[#004080] bg-blue-50 text-[#004080]'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <MdAdminPanelSettings className="w-5 h-5" />
+                  システム管理者
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                管理者モードではシステム管理者ロールでログインします。
+                <strong>一般ユーザー:</strong> 企業の通常ユーザー |{' '}
+                <strong>テナント管理者:</strong> 企業内のユーザー管理 |{' '}
+                <strong>システム管理者:</strong> DATAGRID管理者
               </p>
             </div>
 

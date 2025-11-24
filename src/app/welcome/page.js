@@ -18,12 +18,6 @@ export default function WelcomePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, router]);
-
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -38,9 +32,9 @@ export default function WelcomePage() {
               </div>
               <span className="text-xl font-bold text-gray-900">図面解析AI</span>
             </div>
-            <Link href="/login">
+            <Link href={isAuthenticated ? "/dashboard" : "/login"}>
               <button className="px-6 py-2.5 bg-[#004080] text-white rounded-lg font-medium hover:bg-[#003060] transition-colors">
-                ログイン
+                {isAuthenticated ? "ダッシュボード" : "ログイン"}
               </button>
             </Link>
           </div>
@@ -63,9 +57,9 @@ export default function WelcomePage() {
                 正確性と効率性を両立した次世代の図面管理システム。
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/login">
+                <Link href={isAuthenticated ? "/dashboard" : "/login"}>
                   <button className="px-8 py-4 bg-[#004080] text-white rounded-lg font-medium text-lg hover:bg-[#003060] transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-                    今すぐ始める
+                    {isAuthenticated ? "ダッシュボードへ" : "今すぐ始める"}
                     <MdArrowForward className="w-5 h-5" />
                   </button>
                 </Link>
@@ -253,9 +247,9 @@ export default function WelcomePage() {
           <p className="text-xl text-blue-100 mb-8">
             14日間の無料トライアルで、すべての機能をお試しいただけます
           </p>
-          <Link href="/login">
+          <Link href={isAuthenticated ? "/dashboard" : "/login"}>
             <button className="px-10 py-4 bg-white text-[#004080] rounded-lg font-bold text-lg hover:bg-gray-50 transition-all shadow-xl inline-flex items-center gap-2">
-              無料で始める
+              {isAuthenticated ? "ダッシュボードへ" : "無料で始める"}
               <MdArrowForward className="w-6 h-6" />
             </button>
           </Link>

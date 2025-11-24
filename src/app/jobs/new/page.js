@@ -182,15 +182,15 @@ function JobCreationForm() {
         <div className="mb-6">
           <button
             onClick={handleBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            className="flex items-center gap-2 text-foreground-light hover:text-foreground mb-4"
           >
             <ArrowLeft className="w-5 h-5" />
             戻る
           </button>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             {selectedTaskType === 'SEARCH' ? '新しいデータセットを作成' : '新しいジョブを作成'}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-foreground-light">
             ステップ {step} / 2
           </p>
         </div>
@@ -198,24 +198,24 @@ function JobCreationForm() {
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center">
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= 1 ? 'bg-[#004080] text-white' : 'bg-gray-200 text-gray-600'}`}>
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground-light'}`}>
               1
             </div>
-            <div className={`flex-1 h-1 mx-2 ${step >= 2 ? 'bg-[#004080]' : 'bg-gray-200'}`} />
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= 2 ? 'bg-[#004080] text-white' : 'bg-gray-200 text-gray-600'}`}>
+            <div className={`flex-1 h-1 mx-2 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground-light'}`}>
               2
             </div>
           </div>
           <div className="flex justify-between mt-2">
-            <span className="text-sm text-gray-600">タスク設定</span>
-            <span className="text-sm text-gray-600">ファイルアップロード</span>
+            <span className="text-sm text-foreground-light">タスク設定</span>
+            <span className="text-sm text-foreground-light">ファイルアップロード</span>
           </div>
         </div>
 
         {/* Step 1: Task Selection & Configuration */}
         {step === 1 && (
           <Card className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">
+            <h2 className="text-xl font-semibold text-foreground mb-6">
               タスク種別を選択
             </h2>
 
@@ -236,21 +236,21 @@ function JobCreationForm() {
                     }}
                     className={`p-6 border-2 rounded-lg transition-all duration-200 text-left ${
                       isSelected
-                        ? 'border-[#004080] bg-blue-50 shadow-md scale-105'
-                        : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                        ? 'border-primary bg-blue-50 dark:bg-blue-900/20 shadow-md scale-105'
+                        : 'border-border hover:border-primary hover:shadow-sm'
                     }`}
                   >
                     <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-200 ${
-                      task.id === 'INSPECTION' ? 'bg-green-100' :
-                      task.id === 'BOM' ? 'bg-blue-100' : 'bg-purple-100'
+                      task.id === 'INSPECTION' ? 'bg-green-100 dark:bg-green-900/30' :
+                      task.id === 'BOM' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-purple-100 dark:bg-purple-900/30'
                     } ${isSelected ? 'scale-110' : ''}`}>
                       <Icon className={`w-6 h-6 ${
-                        task.id === 'INSPECTION' ? 'text-green-600' :
-                        task.id === 'BOM' ? 'text-blue-600' : 'text-purple-600'
+                        task.id === 'INSPECTION' ? 'text-green-600 dark:text-green-400' :
+                        task.id === 'BOM' ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400'
                       }`} />
                     </div>
-                    <h3 className="font-semibold text-gray-900 mb-2">{task.name}</h3>
-                    <p className="text-sm text-gray-600">{task.description}</p>
+                    <h3 className="font-semibold text-foreground mb-2">{task.name}</h3>
+                    <p className="text-sm text-foreground-light">{task.description}</p>
                   </button>
                 );
               })}
@@ -259,7 +259,7 @@ function JobCreationForm() {
               <p className="text-sm text-red-600 mb-4">{errors.taskType}</p>
             )}
 
-            <div className="space-y-6 border-t border-gray-200 pt-6">
+            <div className="space-y-6 border-t border-border pt-6">
               <Input
                 label={selectedTaskType === 'SEARCH' ? "データセットタイトル" : "ジョブ名"}
                 value={jobName}
@@ -275,7 +275,7 @@ function JobCreationForm() {
               {/* Workflow Selection for INSPECTION */}
               {selectedTaskType === 'INSPECTION' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground-light mb-2">
                     ワークフロー <span className="text-red-500">*</span>
                   </label>
                   <Select
@@ -291,14 +291,14 @@ function JobCreationForm() {
                       <option key={wf.value} value={wf.value}>{wf.label}</option>
                     ))}
                   </Select>
-                  <p className="text-xs text-gray-500 mt-1">検図の目的に応じたワークフローを選択してください</p>
+                  <p className="text-xs text-foreground-lighter mt-1">検図の目的に応じたワークフローを選択してください</p>
                 </div>
               )}
 
               {/* Workflow Selection for BOM */}
               {selectedTaskType === 'BOM' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground-light mb-2">
                     ワークフロー <span className="text-red-500">*</span>
                   </label>
                   <Select
@@ -314,14 +314,14 @@ function JobCreationForm() {
                       <option key={wf.value} value={wf.value}>{wf.label}</option>
                     ))}
                   </Select>
-                  <p className="text-xs text-gray-500 mt-1">図面の種類や構成に応じたワークフローを選択してください</p>
+                  <p className="text-xs text-foreground-lighter mt-1">図面の種類や構成に応じたワークフローを選択してください</p>
                 </div>
               )}
 
               {/* Element Tags for SEARCH */}
               {selectedTaskType === 'SEARCH' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground-light mb-2">
                     要素タグ
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -331,15 +331,15 @@ function JobCreationForm() {
                         onClick={() => toggleTag(tag.id)}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-lg transition-all duration-200 ${
                           tags.includes(tag.id)
-                            ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-sm scale-105'
-                            : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                            ? 'border-purple-500 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 shadow-sm scale-105'
+                            : 'border-border text-foreground-light hover:bg-accent hover:border-primary'
                         }`}
                       >
                         <span>{tags.includes(tag.id) ? '✓ ' : '+ '}{tag.label}</span>
                         <span className="text-xs opacity-60">({tag.type})</span>
                       </button>
                     ))}
-                    <button className="px-3 py-1.5 text-sm border border-dashed border-gray-300 text-gray-500 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                    <button className="px-3 py-1.5 text-sm border border-dashed border-border text-foreground-lighter rounded-lg hover:bg-accent hover:text-foreground transition-colors">
                       + 新規タグ
                     </button>
                   </div>
@@ -383,25 +383,25 @@ function JobCreationForm() {
         {/* Step 2: File Upload */}
         {step === 2 && (
           <Card className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">
+            <h2 className="text-xl font-semibold text-foreground mb-6">
               ファイルをアップロード
             </h2>
 
             {/* Sample Files Option */}
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-900">
+              <h3 className="text-sm font-medium text-foreground-light mb-3 flex items-center gap-2">
                 <FileText className="w-4 h-4" />
                 サンプルファイルを使用（デモ用）
               </h3>
               <div className="space-y-2">
-                <label className="flex items-center gap-3 p-3 bg-white rounded border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                <label className="flex items-center gap-3 p-3 bg-card rounded border border-border cursor-pointer hover:bg-accent transition-colors">
                   <input
                     type="checkbox"
                     checked={useSampleFiles}
                     onChange={(e) => setUseSampleFiles(e.target.checked)}
-                    className="w-4 h-4 text-[#004080] rounded focus:ring-2 focus:ring-[#004080]"
+                    className="w-4 h-4 text-primary rounded focus:ring-2 focus:ring-primary"
                   />
-                  <span className="text-sm text-gray-700 flex-1">デモ用サンプルセット (3ファイル)</span>
+                  <span className="text-sm text-foreground-light flex-1">デモ用サンプルセット (3ファイル)</span>
                 </label>
               </div>
             </div>
@@ -416,15 +416,15 @@ function JobCreationForm() {
                   onChange={handleFileSelect}
                   className="hidden"
                 />
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-[#004080] hover:bg-blue-50 transition-all duration-200 cursor-pointer">
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-lg font-medium text-gray-900 mb-2">
+                <div className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 cursor-pointer">
+                  <Upload className="w-12 h-12 text-foreground-lighter mx-auto mb-4" />
+                  <p className="text-lg font-medium text-foreground mb-2">
                     ファイルをドラッグ&ドロップ
                   </p>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="text-sm text-foreground-light mb-4">
                     またはクリックしてファイルを選択
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-foreground-lighter">
                     {selectedTaskType === 'SEARCH' 
                       ? '対応形式: JPG, PNG, GIF, BMP, TIFF, WebP (最大1000ファイル)'
                       : '対応形式: PDF, PNG, JPEG, TIFF, BMP, Excel (最大10ファイル)'}
@@ -436,28 +436,28 @@ function JobCreationForm() {
             {/* File List */}
             {files.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">
+                <h3 className="text-sm font-medium text-foreground mb-3">
                   アップロードファイル ({files.length}件)
                 </h3>
                 <div className="space-y-2">
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200"
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-accent transition-all duration-200"
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="w-5 h-5 text-gray-400 shrink-0" />
+                        <FileText className="w-5 h-5 text-foreground-lighter shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-medium text-foreground truncate">
                             {file.name}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-foreground-light">
                             {formatFileSize(file.size)}
                           </p>
                           {uploadProgress[file.id] !== undefined && (
-                            <div className="w-full h-1 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                            <div className="w-full h-1 bg-surface-200 rounded-full mt-2 overflow-hidden">
                               <div
-                                className="h-full bg-[#004080] transition-all duration-300"
+                                className="h-full bg-primary transition-all duration-300"
                                 style={{ width: `${uploadProgress[file.id]}%` }}
                               />
                             </div>
@@ -486,14 +486,14 @@ function JobCreationForm() {
 
             {/* Custom Fields / Items */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground-light mb-2">
                 {selectedTaskType === 'INSPECTION' ? 'カスタム検図項目（任意）' : 'カスタムフィールド（任意）'}
               </label>
-              <button className="text-sm text-[#004080] hover:text-blue-700 font-medium flex items-center gap-1">
+              <button className="text-sm text-primary hover:text-blue-700 dark:hover:text-blue-400 font-medium flex items-center gap-1">
                 <Plus className="w-4 h-4" />
                 {selectedTaskType === 'INSPECTION' ? 'カスタム検図項目を追加' : 'カスタムフィールドを追加'}
               </button>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-foreground-lighter mt-1">
                 {selectedTaskType === 'INSPECTION' 
                   ? '標準検図項目に追加のチェック項目を定義できます' 
                   : '追加のデータフィールドを定義できます'}
@@ -502,7 +502,7 @@ function JobCreationForm() {
 
             {/* PNG Conversion Option */}
             {selectedTaskType !== 'SEARCH' && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900 rounded-lg">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -510,10 +510,10 @@ function JobCreationForm() {
                     className="mt-1"
                   />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-foreground">
                       AI処理用にPNGに自動変換
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-foreground-light mt-1">
                       PDFファイルは処理前に自動的にPNG形式に変換されます
                     </p>
                   </div>
