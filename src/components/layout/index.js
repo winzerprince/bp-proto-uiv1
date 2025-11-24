@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 // Supabase-Style Sidebar with icon-only collapsed state
-export function Sidebar({ isOpen, onClose }) {
+function SidebarContent({ isOpen, onClose }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
@@ -426,6 +426,21 @@ export function Sidebar({ isOpen, onClose }) {
         )}
       </aside>
     </>
+  );
+}
+
+// Sidebar wrapper with Suspense boundary
+export function Sidebar({ isOpen, onClose }) {
+  return (
+    <Suspense fallback={
+      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:w-[52px] bg-sidebar-background border-r border-border z-50">
+        <div className="flex items-center justify-center h-[64px] border-b border-border">
+          <div className="w-8 h-8 bg-primary/20 rounded animate-pulse" />
+        </div>
+      </aside>
+    }>
+      <SidebarContent isOpen={isOpen} onClose={onClose} />
+    </Suspense>
   );
 }
 
