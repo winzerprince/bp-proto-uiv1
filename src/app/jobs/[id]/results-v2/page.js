@@ -18,7 +18,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Select, StatusBadge, Modal, Input, Textarea, LoadingSpinner } from '@/components/ui';
-import { getJobById, getInspectionResultsByJobId } from '@/lib/mock-data';
+import { getJobById, getInspectionResults } from '@/lib/mock-data';
 
 export default function JobResultsPageV2() {
   const router = useRouter();
@@ -59,7 +59,7 @@ export default function JobResultsPageV2() {
       const jobData = getJobById(jobId);
       if (jobData && jobData.taskType === 'INSPECTION' && jobData.status === 'completed') {
         setJob(jobData);
-        const resultsData = getInspectionResultsByJobId(jobId);
+        const resultsData = getInspectionResults(jobId);
         setResults(resultsData);
         setFilteredResults(resultsData);
         if (resultsData.length > 0) {
