@@ -77,6 +77,17 @@ export default function JobsListContent() {
     );
   }
 
+  // Get page title based on task type filter
+  const getPageTitle = () => {
+    const titles = {
+      INSPECTION: '検図ジョブ',
+      BOM: 'BOM生成ジョブ',
+      SEARCH: '図面検索ジョブ',
+      all: 'ジョブ一覧'
+    };
+    return titles[taskTypeFilter] || titles.all;
+  };
+
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto">
@@ -84,7 +95,7 @@ export default function JobsListContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              ジョブ一覧
+              {getPageTitle()}
             </h1>
             <p className="text-foreground-light">
               {filteredJobs.length}件のジョブ
