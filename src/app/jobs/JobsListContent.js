@@ -194,7 +194,7 @@ export default function JobsListContent() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <TaskTypeBadge type={job.taskType} />
+                        <TaskTypeBadge taskType={job.taskType} />
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={job.status} />
