@@ -1,16 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Mail, Shield } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Input, Select, Modal, LoadingSpinner } from '@/components/ui';
 import { users as initialUsers, getTenantById } from '@/lib/mock-data';
 
 export default function UserManagementPage() {
-  const router = useRouter();
-  const { user, loading, isAuthenticated, isAdmin, isSystemAdmin } = useAuth();
+  const { user, loading, isAuthenticated, isAdmin, isSystemAdmin } = useAuthGuard('/dashboard');
   const [users, setUsers] = useState(initialUsers);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -23,39 +21,29 @@ export default function UserManagementPage() {
     tenantId: '',
   });
 
-  useEffect(() => {
-    if (!loading && (!isAuthenticated || !isAdmin)) {
-      router.push('/dashboard');
-    }
-  }, [loading, isAuthenticated, isAdmin, router]);
+  // Memoize filtered users to avoid recalculating on every render
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      // System admin sees all users, tenant admin sees only their tenant
+      if (!isSystemAdmin && u.tenantId !== user?.tenantId && u.role !== 'system_admin') {
+        return false;
+      }
 
-  if (loading || !isAuthenticated || !isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+      if (searchQuery && !u.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !u.email.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
 
-  const filteredUsers = users.filter(u => {
-    // System admin sees all users, tenant admin sees only their tenant
-    if (!isSystemAdmin && u.tenantId !== user.tenantId && u.role !== 'system_admin') {
-      return false;
-    }
+      if (roleFilter !== 'all' && u.role !== roleFilter) {
+        return false;
+      }
 
-    if (searchQuery && !u.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !u.email.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
+      return true;
+    });
+  }, [users, searchQuery, roleFilter, isSystemAdmin, user?.tenantId]);
 
-    if (roleFilter !== 'all' && u.role !== roleFilter) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const handleOpenModal = (userToEdit = null) => {
+  // Memoize modal handlers to avoid recreating functions
+  const handleOpenModal = useCallback((userToEdit = null) => {
     if (userToEdit) {
       setEditingUser(userToEdit);
       setFormData({
@@ -70,19 +58,19 @@ export default function UserManagementPage() {
         name: '',
         email: '',
         role: 'general',
-        tenantId: user.tenantId || '',
+        tenantId: user?.tenantId || '',
       });
     }
     setShowModal(true);
-  };
+  }, [user?.tenantId]);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setShowModal(false);
     setEditingUser(null);
     setFormData({ name: '', email: '', role: 'general', tenantId: '' });
-  };
+  }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (editingUser) {
       // Update existing user
       setUsers(users.map(u => 
@@ -100,15 +88,15 @@ export default function UserManagementPage() {
       setUsers([...users, newUser]);
     }
     handleCloseModal();
-  };
+  }, [editingUser, formData, users, handleCloseModal]);
 
-  const handleDelete = (userId) => {
+  const handleDelete = useCallback((userId) => {
     if (confirm('このユーザーを削除してもよろしいですか?')) {
       setUsers(users.filter(u => u.id !== userId));
     }
-  };
+  }, [users]);
 
-  const getRoleBadge = (role) => {
+  const getRoleBadge = useCallback((role) => {
     const badges = {
       system_admin: { label: 'システム管理者', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
       tenant_admin: { label: 'テナント管理者', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
@@ -120,7 +108,15 @@ export default function UserManagementPage() {
         {badge.label}
       </span>
     );
-  };
+  }, []);
+
+  if (loading || !isAuthenticated || !isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <MainLayout>

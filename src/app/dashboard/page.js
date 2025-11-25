@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -11,20 +11,36 @@ import {
   Plus,
   ArrowRight,
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, StatusBadge, TaskTypeBadge, LoadingSpinner } from '@/components/ui';
-import { mockJobs, getJobsByTenant, taskTypes } from '@/lib/mock-data';
+import { mockJobs, getJobsByTenant } from '@/lib/mock-data';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated } = useAuthGuard();
 
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [loading, isAuthenticated, router]);
+  // Memoize user jobs
+  const userJobs = useMemo(() => 
+    user?.role === 'system_admin' ? mockJobs : getJobsByTenant(user?.tenantId),
+    [user?.role, user?.tenantId]
+  );
+
+  // Memoize stats calculations
+  const stats = useMemo(() => ({
+    total: userJobs.length,
+    active: userJobs.filter(j => ['processing', 'ready', 'file_uploading'].includes(j.status)).length,
+    completed: userJobs.filter(j => j.status === 'completed').length,
+    avgTime: '45分',
+  }), [userJobs]);
+
+  // Memoize recent jobs sorting
+  const recentJobs = useMemo(() => 
+    userJobs
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .slice(0, 5),
+    [userJobs]
+  );
 
   if (loading || !isAuthenticated) {
     return (
@@ -33,21 +49,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  const userJobs = user.role === 'system_admin' 
-    ? mockJobs 
-    : getJobsByTenant(user.tenantId);
-
-  const stats = {
-    total: userJobs.length,
-    active: userJobs.filter(j => ['processing', 'ready', 'file_uploading'].includes(j.status)).length,
-    completed: userJobs.filter(j => j.status === 'completed').length,
-    avgTime: '45分',
-  };
-
-  const recentJobs = userJobs
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-    .slice(0, 5);
 
   return (
     <MainLayout>

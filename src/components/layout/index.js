@@ -30,21 +30,20 @@ function SidebarContent({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [sidebarMode, setSidebarMode] = useState('hover'); // 'always-open', 'hover'
+  // Initialize state from localStorage to avoid cascading renders
+  const [sidebarMode, setSidebarMode] = useState(() => {
+    if (typeof window === 'undefined') return 'hover';
+    const saved = localStorage.getItem('sidebarMode');
+    return (saved === 'always-open' || saved === 'hover') ? saved : 'hover';
+  });
+  
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('sidebarMode') === 'always-open';
+  });
+  
   const [showSettings, setShowSettings] = useState(false);
   const [jobsExpanded, setJobsExpanded] = useState(true);
-
-  // Load sidebarMode from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('sidebarMode');
-    if (saved === 'always-open' || saved === 'hover') {
-      setSidebarMode(saved);
-      if (saved === 'always-open') {
-        setIsExpanded(true);
-      }
-    }
-  }, []);
 
   // Persist sidebarMode to localStorage
   const updateSidebarMode = (mode) => {
@@ -492,31 +491,30 @@ export function Header({ onMenuClick }) {
 // Main Layout Wrapper
 export function MainLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarMode, setSidebarMode] = useState('hover');
+  
+  // Initialize sidebarMode from localStorage
+  const [sidebarMode, setSidebarMode] = useState(() => {
+    if (typeof window === 'undefined') return 'hover';
+    return localStorage.getItem('sidebarMode') || 'hover';
+  });
 
-  // Sync with sidebar mode from localStorage
+  // Listen for changes in localStorage from sidebar updates
   useEffect(() => {
-    const saved = localStorage.getItem('sidebarMode');
-    if (saved) {
-      setSidebarMode(saved);
-    }
-    
-    // Listen for changes in localStorage (in case sidebar updates it)
-    const handleStorage = () => {
-      const updated = localStorage.getItem('sidebarMode');
-      if (updated) {
-        setSidebarMode(updated);
+    const handleStorage = (e) => {
+      if (e.key === 'sidebarMode' && e.newValue) {
+        setSidebarMode(e.newValue);
       }
     };
     
     window.addEventListener('storage', handleStorage);
-    // Also poll every 100ms for same-tab updates
+    
+    // Poll for same-tab updates (since storage events don't fire in same tab)
     const interval = setInterval(() => {
-      const updated = localStorage.getItem('sidebarMode');
-      if (updated && updated !== sidebarMode) {
-        setSidebarMode(updated);
+      const current = localStorage.getItem('sidebarMode');
+      if (current && current !== sidebarMode) {
+        setSidebarMode(current);
       }
-    }, 100);
+    }, 500); // Reduced from 100ms to 500ms for better performance
     
     return () => {
       window.removeEventListener('storage', handleStorage);

@@ -1,31 +1,5 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout';
-import { LoadingSpinner } from '@/components/ui';
+import RedirectTo from '@/components/RedirectTo';
 
 export default function SearchPage() {
-  const router = useRouter();
-  const { user, loading, isAuthenticated } = useAuth();
-
-  useEffect(() => {
-    if (!loading) {
-      if (!isAuthenticated) {
-        router.push('/login');
-      } else {
-        // Redirect to jobs with SEARCH filter
-        router.push('/jobs?type=SEARCH');
-      }
-    }
-  }, [loading, isAuthenticated, router]);
-
-  return (
-    <MainLayout>
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    </MainLayout>
-  );
+  return <RedirectTo to="/jobs?type=SEARCH" />;
 }

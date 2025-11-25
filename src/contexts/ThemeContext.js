@@ -5,21 +5,18 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const ThemeContext = createContext({});
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState('dark');
+  // Initialize theme from localStorage to avoid flash and cascading renders
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const stored = localStorage.getItem('theme');
+    if (stored) return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+  
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const stored = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    if (stored) {
-      setTheme(stored);
-    } else if (prefersDark) {
-      setTheme('dark');
-    } else {
-      setTheme('light');
-    }
   }, []);
 
   useEffect(() => {

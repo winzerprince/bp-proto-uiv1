@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { MdAdd, MdSearch, MdFilterAlt, MdVisibility } from 'react-icons/md';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Input, Select, StatusBadge, TaskTypeBadge, LoadingSpinner } from '@/components/ui';
 import { mockJobs, getJobsByTenant, jobStatusOptions, taskTypeOptions } from '@/lib/mock-data';
@@ -12,12 +12,12 @@ import { mockJobs, getJobsByTenant, jobStatusOptions, taskTypeOptions } from '@/
 export default function JobsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated } = useAuthGuard();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('updated');
   
-  // Get initial filter from URL
+  // Get initial filter from URL - only compute once
   const initialTypeFilter = useMemo(() => {
     const typeParam = searchParams.get('type');
     return (typeParam && ['INSPECTION', 'BOM', 'SEARCH'].includes(typeParam)) ? typeParam : 'all';
@@ -30,11 +30,44 @@ export default function JobsListContent() {
     setTaskTypeFilter(initialTypeFilter);
   }, [initialTypeFilter]);
 
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [loading, isAuthenticated, router]);
+  // Memoize user jobs to avoid recalculating on every render
+  const userJobs = useMemo(() => 
+    user?.role === 'system_admin' ? mockJobs : getJobsByTenant(user?.tenantId),
+    [user?.role, user?.tenantId]
+  );
+
+  // Memoize filtered and sorted jobs to avoid expensive operations on every render
+  const filteredJobs = useMemo(() => {
+    if (!userJobs) return [];
+    return userJobs
+      .filter(job => {
+        if (searchQuery && !job.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+          return false;
+        }
+        if (statusFilter !== 'all' && job.status !== statusFilter) {
+          return false;
+        }
+        if (taskTypeFilter !== 'all' && job.taskType !== taskTypeFilter) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'updated') {
+          return new Date(b.updatedAt) - new Date(a.updatedAt);
+        } else if (sortBy === 'created') {
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        } else if (sortBy === 'name') {
+          return a.name.localeCompare(b.name);
+        }
+        return 0;
+      });
+  }, [userJobs, searchQuery, statusFilter, taskTypeFilter, sortBy]);
+
+  // Memoize row click handler to avoid recreating function on every render
+  const handleRowClick = useCallback((jobId) => {
+    router.push(`/jobs/${jobId}`);
+  }, [router]);
 
   if (loading || !isAuthenticated) {
     return (
@@ -43,35 +76,6 @@ export default function JobsListContent() {
       </div>
     );
   }
-
-  const userJobs = user.role === 'system_admin' 
-    ? mockJobs 
-    : getJobsByTenant(user.tenantId);
-
-  // Apply filters
-  const filteredJobs = userJobs
-    .filter(job => {
-      if (searchQuery && !job.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
-      }
-      if (statusFilter !== 'all' && job.status !== statusFilter) {
-        return false;
-      }
-      if (taskTypeFilter !== 'all' && job.taskType !== taskTypeFilter) {
-        return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'updated') {
-        return new Date(b.updatedAt) - new Date(a.updatedAt);
-      } else if (sortBy === 'created') {
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      } else if (sortBy === 'name') {
-        return a.name.localeCompare(b.name);
-      }
-      return 0;
-    });
 
   return (
     <MainLayout>
@@ -178,7 +182,7 @@ export default function JobsListContent() {
                 <tbody className="bg-card divide-y divide-border">
                   {filteredJobs.map((job) => (
                     <tr key={job.id} className="hover:bg-accent transition-all duration-200 hover:shadow-sm"
-                      onClick={() => router.push(`/jobs/${job.id}`)}
+                      onClick={() => handleRowClick(job.id)}
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="px-6 py-4">
