@@ -9,7 +9,9 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+# Only ignore root samples folder (pilot data), not public/samples (blueprint images)
 /samples
+!public/samples
 
 # testing
 /coverage
