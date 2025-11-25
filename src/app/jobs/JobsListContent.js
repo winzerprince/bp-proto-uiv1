@@ -66,7 +66,7 @@ export default function JobsListContent() {
 
   // Memoize row click handler to avoid recreating function on every render
   const handleRowClick = useCallback((jobId) => {
-    router.push(`/jobs/${jobId}`);
+    router.push(`/jobs/${jobId}/results`);
   }, [router]);
 
   if (loading || !isAuthenticated) {
@@ -223,7 +223,7 @@ export default function JobsListContent() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link href={`/jobs/${job.id}`}>
+                          <Link href={`/jobs/${job.id}/results`} onClick={(e) => e.stopPropagation()}>
                             <Button variant="secondary" size="sm" className="gap-1">
                               <MdVisibility className="w-4 h-4" />
                               詳細

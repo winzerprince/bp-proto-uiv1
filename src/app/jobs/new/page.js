@@ -43,6 +43,8 @@ function JobCreationForm() {
   const [workflow, setWorkflow] = useState('');
   const [tags, setTags] = useState([]);
   const [files, setFiles] = useState([]);
+  const [realImages, setRealImages] = useState([]);
+  const [drawings, setDrawings] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [errors, setErrors] = useState({});
@@ -91,6 +93,32 @@ function JobCreationForm() {
     setFiles([...files, ...newFiles]);
   };
 
+  const handleRealImageSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    const newFiles = selectedFiles.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      type: 'real',
+    }));
+    setRealImages([...realImages, ...newFiles]);
+  };
+
+  const handleDrawingSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    const newFiles = selectedFiles.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      type: 'drawing',
+    }));
+    setDrawings([...drawings, ...newFiles]);
+  };
+
   const handleRemoveFile = (fileId) => {
     setFiles(files.filter(f => f.id !== fileId));
   };
@@ -119,7 +147,14 @@ function JobCreationForm() {
       newErrors.workflow = 'ワークフローを選択してください';
     }
     
-    if (files.length === 0 && !useSampleFiles) {
+    if (selectedTaskType === 'INSPECTION') {
+      if (realImages.length === 0 && !useSampleFiles) {
+        newErrors.realImages = '実画像をアップロードしてください';
+      }
+      if (drawings.length === 0 && !useSampleFiles) {
+        newErrors.drawings = '図面をアップロードしてください';
+      }
+    } else if (files.length === 0 && !useSampleFiles) {
       newErrors.files = 'ファイルをアップロードするか、サンプルファイルを選択してください';
     }
 
@@ -398,7 +433,7 @@ function JobCreationForm() {
             <Card className="p-6 sticky top-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-foreground">
-                  ファイル
+                  {selectedTaskType === 'INSPECTION' ? 'ファイルアップロード' : 'ファイル'}
                 </h2>
                 <button
                   onClick={() => setShowFilePreview(!showFilePreview)}
@@ -423,26 +458,92 @@ function JobCreationForm() {
               </div>
 
               {/* Drag and Drop Zone */}
-              <div className="mb-4">
-                <label className="block w-full">
-                  <input
-                    type="file"
-                    multiple
-                    accept={selectedTaskType === 'SEARCH' ? "image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp" : ".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.xlsx,.xls"}
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 cursor-pointer">
-                    <Upload className="w-8 h-8 text-foreground-lighter mx-auto mb-2" />
-                    <p className="text-sm font-medium text-foreground mb-1">
-                      ファイルを選択
-                    </p>
-                    <p className="text-xs text-foreground-light">
-                      またはドラッグ&ドロップ
-                    </p>
+              {selectedTaskType === 'INSPECTION' ? (
+                <div className="space-y-4 mb-4">
+                  {/* Real Images Upload */}
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-light mb-2">
+                      実画像アップロード <span className="text-red-500">*</span>
+                    </label>
+                    <label className="block w-full">
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp"
+                        onChange={handleRealImageSelect}
+                        className="hidden"
+                      />
+                      <div className="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg p-4 text-center hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 cursor-pointer bg-blue-50/50 dark:bg-blue-950/30">
+                        <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-foreground">
+                          実画像を選択
+                        </p>
+                        <p className="text-xs text-foreground-light mt-0.5">
+                          現場写真・施工写真
+                        </p>
+                      </div>
+                    </label>
+                    {errors.realImages && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+                        <AlertCircle className="w-3 h-3" />
+                        <span>{errors.realImages}</span>
+                      </div>
+                    )}
                   </div>
-                </label>
-              </div>
+
+                  {/* Drawings Upload */}
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-light mb-2">
+                      図面アップロード <span className="text-red-500">*</span>
+                    </label>
+                    <label className="block w-full">
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp"
+                        onChange={handleDrawingSelect}
+                        className="hidden"
+                      />
+                      <div className="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-lg p-4 text-center hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all duration-200 cursor-pointer bg-purple-50/50 dark:bg-purple-950/30">
+                        <Upload className="w-6 h-6 text-purple-600 dark:text-purple-400 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-foreground">
+                          図面を選択
+                        </p>
+                        <p className="text-xs text-foreground-light mt-0.5">
+                          設計図・施工図
+                        </p>
+                      </div>
+                    </label>
+                    {errors.drawings && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+                        <AlertCircle className="w-3 h-3" />
+                        <span>{errors.drawings}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <label className="block w-full">
+                    <input
+                      type="file"
+                      multiple
+                      accept={selectedTaskType === 'SEARCH' ? "image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp" : ".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.xlsx,.xls"}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 cursor-pointer">
+                      <Upload className="w-8 h-8 text-foreground-lighter mx-auto mb-2" />
+                      <p className="text-sm font-medium text-foreground mb-1">
+                        ファイルを選択
+                      </p>
+                      <p className="text-xs text-foreground-light">
+                        またはドラッグ&ドロップ
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
 
               {errors.files && (
                 <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 mb-4">
@@ -452,7 +553,96 @@ function JobCreationForm() {
               )}
 
               {/* File List with Preview */}
-              {files.length > 0 && (
+              {selectedTaskType === 'INSPECTION' ? (
+                <>
+                  {realImages.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        実画像 ({realImages.length}件)
+                      </h3>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {realImages.map((file) => (
+                          <div
+                            key={file.id}
+                            className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200"
+                          >
+                            <div className="flex items-start gap-2">
+                              <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {file.name}
+                                </p>
+                                <p className="text-xs text-foreground-light">
+                                  {formatFileSize(file.size)}
+                                </p>
+                                {uploadProgress[file.id] !== undefined && (
+                                  <div className="w-full h-1 bg-blue-200 dark:bg-blue-800 rounded-full mt-1 overflow-hidden">
+                                    <div
+                                      className="h-full bg-blue-600 transition-all duration-300"
+                                      style={{ width: `${uploadProgress[file.id]}%` }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setRealImages(realImages.filter(f => f.id !== file.id))}
+                                className="text-foreground-lighter hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                                title="削除"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {drawings.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-xs font-medium text-purple-700 dark:text-purple-400 mb-2 flex items-center gap-1">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                        図面 ({drawings.length}件)
+                      </h3>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {drawings.map((file) => (
+                          <div
+                            key={file.id}
+                            className="p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200"
+                          >
+                            <div className="flex items-start gap-2">
+                              <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {file.name}
+                                </p>
+                                <p className="text-xs text-foreground-light">
+                                  {formatFileSize(file.size)}
+                                </p>
+                                {uploadProgress[file.id] !== undefined && (
+                                  <div className="w-full h-1 bg-purple-200 dark:bg-purple-800 rounded-full mt-1 overflow-hidden">
+                                    <div
+                                      className="h-full bg-purple-600 transition-all duration-300"
+                                      style={{ width: `${uploadProgress[file.id]}%` }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setDrawings(drawings.filter(f => f.id !== file.id))}
+                                className="text-foreground-lighter hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                                title="削除"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : files.length > 0 && (
                 <div className="mb-4">
                   <h3 className="text-xs font-medium text-foreground-light mb-2">
                     アップロード ({files.length}件)
@@ -492,6 +682,7 @@ function JobCreationForm() {
                         {/* File Preview (if enabled) */}
                         {showFilePreview && file.file.type.startsWith('image/') && (
                           <div className="mt-2 rounded overflow-hidden border border-border">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                               src={URL.createObjectURL(file.file)} 
                               alt={file.name}
