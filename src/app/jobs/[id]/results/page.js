@@ -438,29 +438,31 @@ export default function JobResultsPage() {
                   <div 
                     className="absolute inset-0 flex items-center justify-center"
                     style={{
-                      transform: `translate(${panPosition.x}px, ${panPosition.y}px)`
+                      transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center'
                     }}
                   >
                     {activeTab === 'split' ? (
-                      <div className="flex gap-4">
+                      <div className="flex gap-4 flex-shrink-0">
                         {/* Real Image */}
-                        <div className="relative">
+                        <div className="relative flex-shrink-0">
                           <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 text-xs rounded z-10">
                             実画像
                           </div>
                           {selectedResult && job.files[0]?.preview ? (
-                            <div className="relative" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center' }}>
+                            <div className="relative w-[400px] h-[300px] overflow-hidden flex-shrink-0">
                               <Image
                                 src={job.files[0].preview}
                                 alt="Real"
                                 width={400}
                                 height={300}
-                                className="rounded shadow-lg border-2 border-blue-500"
+                                className="rounded shadow-lg border-2 border-blue-500 object-contain"
+                                style={{ maxWidth: '400px', maxHeight: '300px' }}
                                 unoptimized
                               />
                               {selectedResult.boundingBox && (
                                 <div
-                                  className="absolute border-4 border-yellow-400 bg-yellow-400/20 animate-pulse"
+                                  className="absolute border-4 border-yellow-400 bg-yellow-400/20 animate-pulse pointer-events-none"
                                   style={{
                                     left: selectedResult.boundingBox.x / 2,
                                     top: selectedResult.boundingBox.y / 2,
@@ -471,29 +473,30 @@ export default function JobResultsPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="w-[400px] h-[300px] bg-gray-800 rounded flex items-center justify-center">
+                            <div className="w-[400px] h-[300px] bg-gray-800 rounded flex items-center justify-center flex-shrink-0">
                               <Eye className="w-12 h-12 text-gray-600" />
                             </div>
                           )}
                         </div>
                         {/* Blueprint */}
-                        <div className="relative">
+                        <div className="relative flex-shrink-0">
                           <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-1 text-xs rounded z-10">
                             図面
                           </div>
                           {selectedResult && job.files[0]?.preview ? (
-                            <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center' }}>
+                            <div className="relative w-[400px] h-[300px] overflow-hidden flex-shrink-0">
                               <Image
                                 src={job.files[0].preview}
                                 alt="Blueprint"
                                 width={400}
                                 height={300}
-                                className="rounded shadow-lg border-2 border-purple-500"
+                                className="rounded shadow-lg border-2 border-purple-500 object-contain"
+                                style={{ maxWidth: '400px', maxHeight: '300px' }}
                                 unoptimized
                               />
                               {selectedResult.boundingBox && (
                                 <div
-                                  className="absolute border-4 border-red-500 bg-red-500/20 animate-pulse"
+                                  className="absolute border-4 border-red-500 bg-red-500/20 animate-pulse pointer-events-none"
                                   style={{
                                     left: selectedResult.boundingBox.x / 2,
                                     top: selectedResult.boundingBox.y / 2,
@@ -508,7 +511,7 @@ export default function JobResultsPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="w-[400px] h-[300px] bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
+                            <div className="w-[400px] h-[300px] bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center flex-shrink-0">
                               <Eye className="w-12 h-12 text-gray-400" />
                             </div>
                           )}
@@ -517,7 +520,7 @@ export default function JobResultsPage() {
                     ) : (
                       <div className="relative">
                         {selectedResult && job.files[0]?.preview ? (
-                          <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center' }}>
+                          <div className="relative">
                             <Image
                               src={job.files[0].preview}
                               alt={activeTab === 'real' ? 'Real Image' : 'Blueprint'}
