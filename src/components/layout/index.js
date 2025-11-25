@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -171,17 +172,23 @@ function SidebarContent({ isOpen, onClose }) {
         {/* Logo/Brand */}
         <div className="h-[49px] flex items-center border-b border-border shrink-0 px-1.5 lg:px-0">
           <Link href="/welcome" className="flex items-center gap-2 w-full lg:pl-1.5">
-            <img 
+            <Image 
               src="/icon.svg" 
               alt="BP Toolkit" 
-              className="w-8 h-8 shrink-0 rounded-lg lg:ml-2"
+              width={32}
+              height={32}
+              className="shrink-0 rounded-lg lg:ml-2"
+              priority
             />
-            <img
+            <Image
               src="/logo-dark.svg"
               alt="BP Toolkit"
-              className={`h-6 whitespace-nowrap transition-[opacity,width] duration-100 ${
+              width={120}
+              height={24}
+              className={`whitespace-nowrap transition-[opacity,width] duration-100 ${
                 shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
               }`}
+              priority
             />
           </Link>
           <button

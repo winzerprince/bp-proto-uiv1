@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -21,6 +21,8 @@ import {
   MessageSquare,
   GripVertical,
   Tag,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout';
@@ -37,9 +39,7 @@ export default function JobResultsPage() {
   const router = useRouter();
   const params = useParams();
   const { user, loading, isAuthenticated } = useAuth();
-  const [job, setJob] = useState(null);
-  const [results, setResults] = useState([]);
-  const [filteredResults, setFilteredResults] = useState([]);
+  const [internalResults, setInternalResults] = useState([]);
   const [selectedResult, setSelectedResult] = useState(null);
   const [confidenceFilter, setConfidenceFilter] = useState(0);
   const [judgmentFilter, setJudgmentFilter] = useState('all');
@@ -75,31 +75,31 @@ export default function JobResultsPage() {
     }
   }, [loading, isAuthenticated, router]);
 
-  useEffect(() => {
-    if (jobId) {
-      const jobData = getJobById(jobId);
-      if (jobData) {
-        setJob(jobData);
-        
-        let resultsData = [];
-        if (jobData.taskType === 'INSPECTION') {
-          resultsData = getInspectionResults(jobId);
-        } else if (jobData.taskType === 'BOM') {
-          resultsData = getBOMResults(jobId);
-        } else if (jobData.taskType === 'SEARCH') {
-          resultsData = getSearchResults(jobId);
-        }
-        
-        setResults(resultsData);
-        setFilteredResults(resultsData);
-        if (resultsData.length > 0 && jobData.taskType === 'INSPECTION') {
-          setSelectedResult(resultsData[0]);
-        }
-      }
+  // Memoize job and results data to avoid cascading renders
+  const job = useMemo(() => jobId ? getJobById(jobId) : null, [jobId]);
+  
+  const results = useMemo(() => {
+    if (!jobId || !job) return [];
+    
+    if (job.taskType === 'INSPECTION') {
+      return getInspectionResults(jobId);
+    } else if (job.taskType === 'BOM') {
+      return getBOMResults(jobId);
+    } else if (job.taskType === 'SEARCH') {
+      return getSearchResults(jobId);
     }
-  }, [jobId]);
-
+    return [];
+  }, [jobId, job]);
+  
+  // Initialize selected result only once when results change
   useEffect(() => {
+    if (results.length > 0 && job?.taskType === 'INSPECTION' && !selectedResult) {
+      setSelectedResult(results[0]);
+    }
+  }, [results, job?.taskType]); // Removed selectedResult from deps to avoid loop
+
+  // Memoize filtered results to avoid unnecessary recalculations and cascading renders
+  const filteredResults = useMemo(() => {
     let filtered = [...results];
 
     if (confidenceFilter > 0) {
@@ -117,19 +117,21 @@ export default function JobResultsPage() {
         filtered = filtered.filter(r => r.userAction === actionFilter);
       }
       if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase();
         filtered = filtered.filter(r => 
-          r.aiComment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.userComment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.type?.toLowerCase().includes(searchQuery.toLowerCase())
+          r.aiComment?.toLowerCase().includes(lowerQuery) ||
+          r.userComment?.toLowerCase().includes(lowerQuery) ||
+          r.type?.toLowerCase().includes(lowerQuery)
         );
       }
     } else if (job?.taskType === 'BOM') {
       if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase();
         filtered = filtered.filter(r =>
-          r.partName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.partNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.specification?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.category?.toLowerCase().includes(searchQuery.toLowerCase())
+          r.partName?.toLowerCase().includes(lowerQuery) ||
+          r.partNumber?.toLowerCase().includes(lowerQuery) ||
+          r.specification?.toLowerCase().includes(lowerQuery) ||
+          r.category?.toLowerCase().includes(lowerQuery)
         );
       }
     } else if (job?.taskType === 'SEARCH') {
@@ -144,16 +146,17 @@ export default function JobResultsPage() {
         );
       }
       if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase();
         filtered = filtered.filter(r =>
-          r.drawingName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.matchedElement?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.elementType?.toLowerCase().includes(searchQuery.toLowerCase())
+          r.drawingName?.toLowerCase().includes(lowerQuery) ||
+          r.matchedElement?.toLowerCase().includes(lowerQuery) ||
+          r.elementType?.toLowerCase().includes(lowerQuery)
         );
       }
     }
 
-    setFilteredResults(filtered);
-  }, [results, confidenceFilter, judgmentFilter, typeFilter, actionFilter, searchQuery, job, elementTypeFilters, tagFilters]);
+    return filtered;
+  }, [results, confidenceFilter, judgmentFilter, typeFilter, actionFilter, searchQuery, job?.taskType, elementTypeFilters, tagFilters]);
 
   // Canvas interaction handlers
   const handleWheel = useCallback((e) => {
@@ -181,6 +184,43 @@ export default function JobResultsPage() {
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
   }, []);
+  
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel(prev => Math.min(3, prev + 0.1));
+  }, []);
+  
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel(prev => Math.max(0.5, prev - 0.1));
+  }, []);
+  
+  const handleResetZoom = useCallback(() => {
+    setZoomLevel(1);
+    setPanPosition({ x: 0, y: 0 });
+  }, []);
+  
+  const toggleElementType = useCallback((type) => {
+    setElementTypeFilters(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(type)) {
+        newSet.delete(type);
+      } else {
+        newSet.add(type);
+      }
+      return newSet;
+    });
+  }, []);
+  
+  const toggleTagFilter = useCallback((tag) => {
+    setTagFilters(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tag)) {
+        newSet.delete(type);
+      } else {
+        newSet.add(tag);
+      }
+      return newSet;
+    });
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -202,34 +242,37 @@ export default function JobResultsPage() {
     });
   };
 
-  const handleUpdateUserAction = (resultId, action) => {
-    setResults(results.map(r => 
+  const handleUpdateUserAction = useCallback((resultId, action) => {
+    setInternalResults(prevResults => prevResults.map(r => 
       r.id === resultId ? { ...r, userAction: action } : r
     ));
-  };
+  }, []);
 
-  const handleUpdateUserComment = (resultId, comment) => {
-    setResults(results.map(r => 
+  const handleUpdateUserComment = useCallback((resultId, comment) => {
+    setInternalResults(prevResults => prevResults.map(r => 
       r.id === resultId ? { ...r, userComment: comment } : r
     ));
-  };
+  }, []);
 
-  const handleBulkConfirm = () => {
+  const handleBulkConfirm = useCallback(() => {
     const toConfirm = filteredResults.filter(r => 
       r.confidence * 100 >= bulkThreshold && r.userAction === 'pending'
     );
     setShowBulkModal(false);
     
-    setResults(results.map(r => 
+    setInternalResults(prevResults => prevResults.map(r => 
       toConfirm.find(tc => tc.id === r.id) 
         ? { ...r, userAction: 'confirmed' } 
         : r
     ));
-  };
+  }, [filteredResults, bulkThreshold]);
 
-  const bulkConfirmCount = filteredResults.filter(r => 
-    r.confidence * 100 >= bulkThreshold && r.userAction === 'pending'
-  ).length;
+  const bulkConfirmCount = useMemo(() => 
+    filteredResults.filter(r => 
+      r.confidence * 100 >= bulkThreshold && r.userAction === 'pending'
+    ).length,
+    [filteredResults, bulkThreshold]
+  );
 
   if (loading || !isAuthenticated) {
     return (
