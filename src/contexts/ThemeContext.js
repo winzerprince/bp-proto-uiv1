@@ -6,11 +6,12 @@ const ThemeContext = createContext({});
 
 export function ThemeProvider({ children }) {
   // Initialize theme from localStorage to avoid flash and cascading renders
+  // Default to light mode always, regardless of system preference
   const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') return 'dark';
+    if (typeof window === 'undefined') return 'light';
     const stored = localStorage.getItem('theme');
     if (stored) return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'light'; // Always default to light mode
   });
   
   const [mounted, setMounted] = useState(false);

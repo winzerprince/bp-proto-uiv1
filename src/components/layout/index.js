@@ -97,6 +97,7 @@ function SidebarContent({ isOpen, onClose }) {
       href: "/jobs",
       matchType: "all",
       isParent: true,
+      hasDropdown: true,
       children: [
         {
           icon: FileSearch,
@@ -129,6 +130,12 @@ function SidebarContent({ isOpen, onClose }) {
             href: "/admin/users",
             matchType: null,
           },
+          ...(user?.role === "system_admin" ? [{
+            icon: SlidersHorizontal,
+            label: "テナント管理",
+            href: "/admin/tenants",
+            matchType: null,
+          }] : []),
           {
             icon: Settings,
             label: "設定",
@@ -194,30 +201,42 @@ function SidebarContent({ isOpen, onClose }) {
                 <li key={item.href}>
                   {item.isParent ? (
                     <>
-                      <button
-                        onClick={() => setJobsExpanded(!jobsExpanded)}
-                        className={`
-                          flex items-center w-full gap-2 rounded-sm text-sm py-2 px-2
-                          transition-[background-color,color] duration-200
-                          ${
-                            active
-                              ? "bg-surface-accent text-foreground"
-                              : "text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
-                          }
-                        `}
-                      >
-                        <Icon className="w-5 h-5 shrink-0" />
-                        <span
-                          className={`flex-1 text-left whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
-                            shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
-                          }`}
+                      <div className="flex items-center gap-0">
+                        <Link
+                          href={item.href}
+                          onClick={onClose}
+                          className={`
+                            flex items-center flex-1 gap-2 rounded-sm text-sm py-2 px-2
+                            transition-[background-color,color] duration-200
+                            ${
+                              active
+                                ? "bg-surface-accent text-foreground"
+                                : "text-foreground-light hover:bg-surface-accent/50 hover:text-foreground"
+                            }
+                          `}
                         >
-                          {item.label}
-                        </span>
-                        <ChevronDown className={`w-4 h-4 shrink-0 transition-[opacity,transform] duration-100 ${
-                          shouldBeExpanded || isOpen ? "opacity-100" : "opacity-0 lg:opacity-0"
-                        } ${jobsExpanded ? "" : "rotate-180"}`} />
-                      </button>
+                          <Icon className="w-5 h-5 shrink-0" />
+                          <span
+                            className={`flex-1 text-left whitespace-nowrap overflow-hidden transition-[opacity,width] duration-100 ${
+                              shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                        </Link>
+                        {item.hasDropdown && (
+                          <button
+                            onClick={() => setJobsExpanded(!jobsExpanded)}
+                            className={`p-2 rounded-sm transition-[background-color,color,opacity] duration-100 ${
+                              shouldBeExpanded || isOpen ? "opacity-100" : "opacity-0 lg:opacity-0"
+                            } text-foreground-light hover:bg-surface-accent/50 hover:text-foreground`}
+                          >
+                            <ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                              jobsExpanded ? "" : "-rotate-90"
+                            }`} />
+                          </button>
+                        )}
+                      </div>
                       {jobsExpanded && (shouldBeExpanded || isOpen) && (
                         <ul className="mt-1 space-y-1 ml-7">
                           {item.children?.map((child) => {
