@@ -171,16 +171,18 @@ function SidebarContent({ isOpen, onClose }) {
         {/* Logo/Brand */}
         <div className="h-[49px] flex items-center border-b border-border shrink-0 px-1.5 lg:px-0">
           <Link href="/welcome" className="flex items-center gap-2 w-full lg:pl-1.5">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs shrink-0 lg:ml-2.5">
-              BP
-            </div>
-            <span
-              className={`font-semibold text-sm text-foreground whitespace-nowrap transition-[opacity,width] duration-100 ${
+            <img 
+              src="/icon.svg" 
+              alt="BP Toolkit" 
+              className="w-8 h-8 shrink-0 rounded-lg lg:ml-2"
+            />
+            <img
+              src="/logo-dark.svg"
+              alt="BP Toolkit"
+              className={`h-6 whitespace-nowrap transition-[opacity,width] duration-100 ${
                 shouldBeExpanded || isOpen ? "opacity-100 w-auto" : "w-0 opacity-0 lg:w-0 lg:opacity-0"
               }`}
-            >
-              Blueprint AI
-            </span>
+            />
           </Link>
           <button
             onClick={onClose}

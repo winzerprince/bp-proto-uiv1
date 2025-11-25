@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Select, Input, Textarea, LoadingSpinner, Modal } from '@/components/ui';
+import { ImageViewer } from '@/components/ImageViewer';
 import { 
   getJobById, 
   getInspectionResults, 
@@ -61,8 +62,11 @@ export default function JobResultsPage() {
   // SEARCH-specific states
   const [elementTypeFilters, setElementTypeFilters] = useState(new Set(['text', 'table', 'figure']));
   const [tagFilters, setTagFilters] = useState(new Set());
+  const [selectedSearchResult, setSelectedSearchResult] = useState(null);
+  const [showImageViewer, setShowImageViewer] = useState(false);
   
   const canvasRef = useRef(null);
+  const drawCanvasRef = useRef(null);
   const jobId = params?.id;
 
   useEffect(() => {
@@ -348,8 +352,31 @@ export default function JobResultsPage() {
                     比較表示
                   </button>
                   <div className="flex-1" />
-                  <div className="text-gray-900 dark:text-white text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded">
-                    ズーム: {Math.round(zoomLevel * 100)}%
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleZoomOut}
+                      className="p-1.5 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors"
+                      title="ズームアウト"
+                    >
+                      <ZoomOut className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                    </button>
+                    <div className="text-gray-900 dark:text-white text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded font-medium min-w-[80px] text-center">
+                      {Math.round(zoomLevel * 100)}%
+                    </div>
+                    <button
+                      onClick={handleZoomIn}
+                      className="p-1.5 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors"
+                      title="ズームイン"
+                    >
+                      <ZoomIn className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                    </button>
+                    <button
+                      onClick={handleResetZoom}
+                      className="text-xs px-2 py-1.5 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors text-gray-700 dark:text-gray-300 font-medium"
+                      title="リセット"
+                    >
+                      リセット
+                    </button>
                   </div>
                   <div className="text-gray-600 dark:text-gray-400 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">
                     スクロール: ズーム | 左ドラッグ: パン
@@ -458,7 +485,7 @@ export default function JobResultsPage() {
                             />
                             {activeTab === 'blueprint' && selectedResult.boundingBox && (
                               <div
-                                className="absolute border-4 border-red-500 bg-red-500/20"
+                                className="absolute border-4 border-red-500 bg-red-500/20 animate-pulse"
                                 style={{
                                   left: selectedResult.boundingBox.x,
                                   top: selectedResult.boundingBox.y,
@@ -466,10 +493,21 @@ export default function JobResultsPage() {
                                   height: selectedResult.boundingBox.height,
                                 }}
                               >
-                                <div className="absolute -top-8 left-0 bg-red-500 text-white px-2 py-1 text-xs font-medium rounded">
+                                <div className="absolute -top-8 left-0 bg-red-500 text-white px-2 py-1 text-xs font-medium rounded shadow-lg">
                                   {selectedResult.type}
                                 </div>
                               </div>
+                            )}
+                            {activeTab === 'real' && selectedResult.boundingBox && (
+                              <div
+                                className="absolute border-4 border-yellow-400 bg-yellow-400/20 animate-pulse"
+                                style={{
+                                  left: selectedResult.boundingBox.x,
+                                  top: selectedResult.boundingBox.y,
+                                  width: selectedResult.boundingBox.width,
+                                  height: selectedResult.boundingBox.height,
+                                }}
+                              />
                             )}
                           </div>
                         ) : (
@@ -1006,6 +1044,7 @@ export default function JobResultsPage() {
             {filteredResults.map((result) => (
               <div
                 key={result.id}
+                onClick={() => setSelectedSearchResult(result)}
                 className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
               >
                 {result.preview && (
@@ -1044,6 +1083,163 @@ export default function JobResultsPage() {
             </div>
           )}
         </Card>
+
+        {/* Detail Modal */}
+        {selectedSearchResult && (
+          <Modal
+            isOpen={!!selectedSearchResult}
+            onClose={() => setSelectedSearchResult(null)}
+            title="図面詳細"
+          >
+            <div className="space-y-6">
+              {/* Preview Image */}
+              {selectedSearchResult.preview && (
+                <div className="relative h-80 bg-gray-100 rounded-lg overflow-hidden">
+                  <Image
+                    src={selectedSearchResult.preview}
+                    alt={selectedSearchResult.drawingName}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {selectedSearchResult.drawingName}
+                  </h3>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 font-medium">
+                      {selectedSearchResult.elementType}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Page {selectedSearchResult.page}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      信頼度: {(selectedSearchResult.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Matched Element */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <label className="text-xs font-semibold text-blue-900 mb-1 block">
+                    マッチした要素
+                  </label>
+                  <p className="text-sm text-gray-900 font-medium">
+                    {selectedSearchResult.matchedElement}
+                  </p>
+                </div>
+
+                {/* Snippet Context */}
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                    コンテキスト
+                  </label>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {selectedSearchResult.snippet}
+                  </p>
+                </div>
+
+                {/* Tags */}
+                {selectedSearchResult.tags && selectedSearchResult.tags.length > 0 && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 mb-2 block">
+                      タグ
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedSearchResult.tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-300"
+                        >
+                          <Tag className="w-3 h-3 inline mr-1" />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional Metadata */}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">ファイル名</label>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {selectedSearchResult.drawingName}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">要素タイプ</label>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {selectedSearchResult.elementType}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">ページ番号</label>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {selectedSearchResult.page}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">信頼度</label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-600"
+                          style={{ width: `${selectedSearchResult.confidence * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-900 font-medium">
+                        {(selectedSearchResult.confidence * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <Button
+                    variant="primary"
+                    className="flex-1 gap-2"
+                    onClick={() => setShowImageViewer(true)}
+                  >
+                    <Eye className="w-4 h-4" />
+                    詳細ビューアーで開く
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="gap-2"
+                    onClick={() => {
+                      window.open(selectedSearchResult.preview, '_blank');
+                    }}
+                  >
+                    <Download className="w-4 h-4" />
+                    ダウンロード
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSelectedSearchResult(null)}
+                  >
+                    閉じる
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Image Viewer */}
+        {showImageViewer && selectedSearchResult?.preview && (
+          <ImageViewer
+            src={selectedSearchResult.preview}
+            alt={selectedSearchResult.drawingName}
+            onClose={() => setShowImageViewer(false)}
+          />
+        )}
       </div>
     </MainLayout>
   );
