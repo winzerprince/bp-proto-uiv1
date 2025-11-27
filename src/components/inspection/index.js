@@ -4,3 +4,5 @@ export { FileTabs } from './FileTabs';
 export { InspectionCardsPanel } from './InspectionCardsPanel';
 export { PolygonOverlay } from './PolygonOverlay';
 export { ScanItemsPanel } from './ScanItemsPanel';
+export { KonvaAnnotationOverlay } from './KonvaAnnotationOverlay';
+export { AnnotoriousOverlay } from './AnnotoriousOverlay';

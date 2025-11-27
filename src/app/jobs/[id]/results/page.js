@@ -35,7 +35,8 @@ import {
   FileTabs, 
   InspectionCardsPanel, 
   PolygonOverlay,
-  ScanItemsPanel 
+  ScanItemsPanel,
+  AnnotoriousOverlay
 } from '@/components/inspection';
 import { 
   getJobById, 
@@ -69,6 +70,7 @@ export default function JobResultsPage() {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [expandedCards, setExpandedCards] = useState(new Set());
+  // isEditMode will be set based on job type in useEffect
   const [isEditMode, setIsEditMode] = useState(false);
   const [showAllHighlights, setShowAllHighlights] = useState(true); // Default to showing all highlights
   const [autoZoom, setAutoZoom] = useState(true); // Default to auto-zoom enabled
@@ -88,6 +90,9 @@ export default function JobResultsPage() {
   const [selectedSearchResult, setSelectedSearchResult] = useState(null);
   const [showImageViewer, setShowImageViewer] = useState(false);
   
+  // SCAN-specific states - selection box for scan area
+  const [scanSelectionBox, setScanSelectionBox] = useState(null);
+  
   const canvasRef = useRef(null);
   const drawCanvasRef = useRef(null);
   const jobId = params?.id;
@@ -97,6 +102,22 @@ export default function JobResultsPage() {
       router.push('/login');
     }
   }, [loading, isAuthenticated, router]);
+
+  // Track container dimensions for responsive canvas sizing
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (canvasRef.current) {
+        setContainerDimensions({
+          width: canvasRef.current.clientWidth,
+          height: canvasRef.current.clientHeight
+        });
+      }
+    };
+    
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
 
   // Memoize job and results data to avoid cascading renders
   const job = useMemo(() => jobId ? getJobById(jobId) : null, [jobId]);
@@ -125,6 +146,38 @@ export default function JobResultsPage() {
       setSelectedResult(results[0]);
     }
   }, [results, job?.taskType]);
+
+  // Set default edit mode for SCAN jobs (scan tasks should default to edit mode)
+  const hasInitializedEditModeRef = useRef(false);
+  
+  useEffect(() => {
+    if (job?.taskType && !hasInitializedEditModeRef.current) {
+      hasInitializedEditModeRef.current = true;
+      if (job.taskType === 'SCAN') {
+        // SCAN jobs default to edit mode for drawing scan regions
+        // eslint-disable-next-line react-compiler/react-compiler
+        setIsEditMode(true);
+      }
+    }
+  }, [job?.taskType]);
+
+  // Initialize selection box for SCAN jobs when image dimensions are known
+  const hasInitializedSelectionBoxRef = useRef(false);
+  
+  useEffect(() => {
+    if (job?.taskType === 'SCAN' && imageDimensions.width > 0 && !hasInitializedSelectionBoxRef.current) {
+      hasInitializedSelectionBoxRef.current = true;
+      // Create a selection box covering most of the image (with 5% margin)
+      const margin = 0.05;
+      // eslint-disable-next-line react-compiler/react-compiler
+      setScanSelectionBox({
+        x: imageDimensions.width * margin,
+        y: imageDimensions.height * margin,
+        width: imageDimensions.width * (1 - 2 * margin),
+        height: imageDimensions.height * (1 - 2 * margin)
+      });
+    }
+  }, [job?.taskType, imageDimensions]);
 
   // Initialize files from job when loaded
   const hasInitializedFilesRef = useRef(false);
@@ -162,6 +215,28 @@ export default function JobResultsPage() {
     if (!activeFileId) return combinedResults;
     return combinedResults.filter(r => r.fileId === activeFileId || (!r.fileId && job?.files?.[0]?.id === activeFileId));
   }, [combinedResults, activeFileId, job]);
+
+  // For SCAN jobs: Filter results by selection box (items whose center is inside the box)
+  const scanFilteredResults = useMemo(() => {
+    if (job?.taskType !== 'SCAN' || !scanSelectionBox) return fileFilteredResults;
+    
+    return fileFilteredResults.filter(result => {
+      if (!result.polygon || result.polygon.length < 3) return false;
+      
+      // Calculate center of the result's polygon
+      const points = result.polygon.map(p => Array.isArray(p) ? p : [p.x, p.y]);
+      const centerX = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+      const centerY = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+      
+      // Check if center is inside selection box
+      return (
+        centerX >= scanSelectionBox.x &&
+        centerX <= scanSelectionBox.x + scanSelectionBox.width &&
+        centerY >= scanSelectionBox.y &&
+        centerY <= scanSelectionBox.y + scanSelectionBox.height
+      );
+    });
+  }, [job?.taskType, fileFilteredResults, scanSelectionBox]);
 
   // Polygon data for overlay
   const polygonData = useMemo(() => {
@@ -321,6 +396,113 @@ export default function JobResultsPage() {
     setInternalResults(prev => [...prev, newItem]);
     setSelectedResult(newItem);
   }, [activeFileId]);
+
+  // Handle creating annotation from canvas (drawing)
+  const handleAnnotationCreate = useCallback((annotationData) => {
+    // Calculate bounding box from polygon
+    const points = annotationData.polygon.map(p => Array.isArray(p) ? p : [p.x, p.y]);
+    const xs = points.map(([x]) => x);
+    const ys = points.map(([, y]) => y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const boundingBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    
+    // Determine item type based on job type
+    const isScan = job?.taskType === 'SCAN';
+    const elementTypes = ['text', 'table', 'figure'];
+    const randomType = elementTypes[Math.floor(Math.random() * elementTypes.length)];
+    
+    const newItem = isScan ? {
+      id: `scan-drawn-${Date.now()}`,
+      jobId: jobId,
+      fileId: activeFileId,
+      fileName: job?.files?.find(f => f.id === activeFileId)?.name || 'unknown',
+      page: 1,
+      elementType: randomType,
+      tagName: '新規スキャン要素',
+      tagCategory: 'detail_view',
+      confidence: 0.5,
+      aiComment: 'AI分析中... 図面要素を解析しています。',
+      userAction: 'pending',
+      userComment: '',
+      polygon: annotationData.polygon,
+      boundingBox
+    } : {
+      id: `insp-drawn-${Date.now()}`,
+      fileId: activeFileId,
+      type: annotationData.type === 'polygon' ? 'ポリゴン検査' : '矩形検査',
+      findingType: annotationData.type === 'polygon' ? 'ポリゴン検査' : '矩形検査',
+      aiJudgment: 'WARNING',
+      confidence: 0.75,
+      aiComment: 'AI分析中...',
+      userAction: 'unconfirmed',
+      userComment: '',
+      polygon: annotationData.polygon,
+      boundingBox
+    };
+    
+    setInternalResults(prev => [...prev, newItem]);
+    setSelectedResult(newItem);
+    
+    // Simulate AI analysis after a short delay
+    setTimeout(() => {
+      setInternalResults(prev => prev.map(r => {
+        if (r.id === newItem.id) {
+          const randomConfidence = 0.7 + Math.random() * 0.25;
+          
+          if (isScan) {
+            // Scan result AI analysis
+            const tagNames = ['部品リスト', '寸法情報', '注釈テキスト', '機器配置', '配管詳細', '接続部詳細'];
+            const tagCategories = ['BOM', 'dimension', 'detail_view', 'floor_plan', 'section_view'];
+            return {
+              ...r,
+              confidence: randomConfidence,
+              tagName: tagNames[Math.floor(Math.random() * tagNames.length)],
+              tagCategory: tagCategories[Math.floor(Math.random() * tagCategories.length)],
+              aiComment: randomConfidence > 0.85 
+                ? '高精度で図面要素を検出しました。確認をお願いします。'
+                : randomConfidence > 0.7
+                ? '図面要素を検出しました。詳細を確認してください。'
+                : '要素を検出しましたが、信頼度が低いため手動確認が必要です。',
+              detailedInfo: {
+                detectedAt: new Date().toISOString(),
+                area: `${Math.round(boundingBox.width * boundingBox.height)} px²`,
+                aspectRatio: (boundingBox.width / boundingBox.height).toFixed(2)
+              }
+            };
+          } else {
+            // Inspection result AI analysis
+            const judgments = ['OK', 'NG', 'WARNING'];
+            const randomJudgment = judgments[Math.floor(Math.random() * judgments.length)];
+            return {
+              ...r,
+              aiJudgment: randomJudgment,
+              confidence: randomConfidence,
+              aiComment: randomJudgment === 'OK' 
+                ? '指定エリアは問題ありません。図面と一致しています。'
+                : randomJudgment === 'NG'
+                ? '指定エリアで不整合が検出されました。確認が必要です。'
+                : '指定エリアで軽微な問題が検出されました。'
+            };
+          }
+        }
+        return r;
+      }));
+    }, 1500);
+  }, [activeFileId, job, jobId]);
+
+  // Handle delete annotation from canvas
+  const handleAnnotationDelete = useCallback((annotationId) => {
+    const result = [...results, ...internalResults].find(r => r.id === annotationId);
+    if (result && window.confirm(`「${result.findingType || result.tagName || result.type || '選択項目'}」を削除してもよろしいですか？`)) {
+      setInternalResults(prev => prev.filter(r => r.id !== annotationId));
+      if (selectedResult?.id === annotationId) {
+        setSelectedResult(null);
+      }
+    }
+  }, [results, internalResults, selectedResult]);
 
   // Handle delete inspection item
   const handleDeleteInspectionItem = useCallback((result) => {
@@ -548,7 +730,7 @@ export default function JobResultsPage() {
     setTagFilters(prev => {
       const newSet = new Set(prev);
       if (newSet.has(tag)) {
-        newSet.delete(type);
+        newSet.delete(tag);
       } else {
         newSet.add(tag);
       }
@@ -729,141 +911,68 @@ export default function JobResultsPage() {
                   onTabClose={handleTabClose}
                 />
 
-                {/* Zoom Controls Only (View Mode Tabs Removed) */}
-                <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                {/* Zoom Controls - Instructions */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {isEditMode ? 'ドラッグ: 検査エリアを編集 | スクロール: ズーム' : 'スクロール: ズーム | ドラッグ: パン | クリック: 選択'}
+                  </span>
                   <div className="flex-1" />
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={handleZoomOut}
-                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                      title="ズームアウト"
-                    >
-                      <ZoomOut className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    </button>
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[50px] text-center">
-                      {Math.round(zoomLevel * 100)}%
+                  {selectedResult && (
+                    <span className="text-xs text-gray-700 dark:text-gray-300 font-medium">
+                      選択中: {selectedResult.findingType || selectedResult.type}
                     </span>
-                    <button
-                      onClick={handleZoomIn}
-                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                      title="ズームイン"
-                    >
-                      <ZoomIn className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    </button>
-                    <button
-                      onClick={handleResetZoom}
-                      className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                    >
-                      リセット
-                    </button>
-                    {selectedResult && (
-                      <button
-                        onClick={() => handleResultSelect(selectedResult, { zoomToFit: true })}
-                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                        title="選択エリアにフィット"
-                      >
-                        <Maximize2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
 
-                {/* Canvas Area */}
+                {/* Canvas Area with Annotorious */}
                 <div 
                   ref={canvasRef}
-                  className={`flex-1 overflow-hidden relative bg-gray-100 dark:bg-gray-950 ${
-                    isEditMode ? 'cursor-crosshair' : 'cursor-move'
-                  }`}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
+                  className="flex-1 overflow-hidden relative bg-gray-100 dark:bg-gray-950"
                 >
-                  <div 
-                    className="absolute inset-0 flex items-center justify-center"
-                    style={{
-                      transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
-                      transformOrigin: 'center'
-                    }}
-                  >
-                    {activeFile?.preview ? (
-                      <div className="relative">
-                        <Image
-                          src={activeFile.preview}
-                          alt={activeFile.name}
-                          width={imageDimensions.width}
-                          height={imageDimensions.height}
-                          className="rounded shadow-lg"
-                          unoptimized
-                          onLoadingComplete={({ naturalWidth, naturalHeight }) => {
-                            setImageDimensions({ width: naturalWidth, height: naturalHeight });
-                          }}
-                        />
-                        {/* Polygon Overlays - conditionally show all or just selected */}
-                        <PolygonOverlay
-                          polygons={showAllHighlights 
-                            ? polygonData 
-                            : polygonData.filter(p => p.id === selectedResult?.id)
+                  {activeFile?.preview ? (
+                    <AnnotoriousOverlay
+                      annotations={fileFilteredResults.map(r => ({
+                        id: r.id,
+                        polygon: r.polygon,
+                        boundingBox: r.boundingBox,
+                        judgment: r.aiJudgment,
+                        type: r.findingType || r.type,
+                        ...r
+                      }))}
+                      imageUrl={activeFile.preview}
+                      selectedAnnotationId={selectedResult?.id}
+                      onAnnotationSelect={(id) => {
+                        const result = fileFilteredResults.find(r => r.id === id);
+                        if (result) handleResultSelect(result, { zoomToFit: autoZoom });
+                      }}
+                      onAnnotationUpdate={(id, updates) => {
+                        setInternalResults(prev => {
+                          const exists = prev.find(r => r.id === id);
+                          if (exists) {
+                            return prev.map(r => r.id === id ? { ...r, ...updates } : r);
                           }
-                          containerWidth={imageDimensions.width}
-                          containerHeight={imageDimensions.height}
-                          imageWidth={imageDimensions.width}
-                          imageHeight={imageDimensions.height}
-                          scale={1}
-                          offsetX={0}
-                          offsetY={0}
-                          selectedPolygonId={selectedResult?.id}
-                          onPolygonSelect={(id) => {
-                            const result = fileFilteredResults.find(r => r.id === id);
-                            if (result) setSelectedResult(result);
-                          }}
-                          onPolygonDrag={handlePolygonDrag}
-                          onRectangleResize={handleRectangleResize}
-                          isEditable={isEditMode}
-                          editMode="rectangle"
-                        />
-                        
-                        {/* Drawing rectangle preview when in edit mode */}
-                        {isEditMode && drawRect && (
-                          <svg
-                            className="absolute inset-0 pointer-events-none"
-                            width={imageDimensions.width}
-                            height={imageDimensions.height}
-                          >
-                            <rect
-                              x={Math.min(drawRect.startX, drawRect.endX)}
-                              y={Math.min(drawRect.startY, drawRect.endY)}
-                              width={Math.abs(drawRect.endX - drawRect.startX)}
-                              height={Math.abs(drawRect.endY - drawRect.startY)}
-                              fill="rgba(59, 130, 246, 0.2)"
-                              stroke="#3b82f6"
-                              strokeWidth={2}
-                              strokeDasharray="4,4"
-                            />
-                          </svg>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center text-gray-500 dark:text-gray-400">
+                          // If updating an original result, add to internal results
+                          const original = results.find(r => r.id === id);
+                          if (original) {
+                            return [...prev, { ...original, ...updates }];
+                          }
+                          return prev;
+                        });
+                      }}
+                      onAnnotationCreate={handleAnnotationCreate}
+                      onAnnotationDelete={handleAnnotationDelete}
+                      isEditable={isEditMode}
+                      showAllAnnotations={showAllHighlights}
+                      onImageLoad={(dims) => setImageDimensions(dims)}
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                      <div className="text-center">
                         <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
                         <p>ファイルを選択してください</p>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Navigation Footer */}
-                <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {isEditMode 
-                      ? 'ドラッグ: 検査エリアを作成 | スクロール: ズーム'
-                      : 'スクロール: ズーム | ドラッグ: パン | クリック: 選択'
-                    }
-                  </span>
-                  {selectedResult && (
-                    <span className="text-gray-700 dark:text-gray-300 font-medium">
-                      選択中: {selectedResult.findingType || selectedResult.type}
-                    </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1047,15 +1156,18 @@ export default function JobResultsPage() {
     // Get active file info
     const activeFile = job.files?.find(f => f.id === activeFileId) || job.files?.[0];
     
-    // Prepare scan results with polygon data
-    const scanPolygonData = fileFilteredResults
-      .filter(r => r.polygon && r.polygon.length >= 3)
-      .map(r => ({
-        id: r.id,
-        polygon: r.polygon,
-        judgment: 'OK', // Scan results are neutral
-        type: r.elementType
-      }));
+    // Use scanFilteredResults (filtered by selection box) for the items list
+    const displayResults = scanFilteredResults;
+    
+    // Calculate item counts by element type
+    const itemCounts = useMemo(() => {
+      const counts = { text: 0, table: 0, figure: 0, total: displayResults.length };
+      displayResults.forEach(r => {
+        const type = r.elementType?.toLowerCase();
+        if (counts[type] !== undefined) counts[type]++;
+      });
+      return counts;
+    }, [displayResults]);
     
     return (
       <div className="h-screen flex flex-col bg-[#F9FAFB] dark:bg-gray-900">
@@ -1064,7 +1176,7 @@ export default function JobResultsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
-                href="/jobs"
+                href="/jobs?type=SCAN"
                 className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -1074,7 +1186,7 @@ export default function JobResultsPage() {
                   {job.name} - BP Scan結果
                 </h1>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
-                  {fileFilteredResults.length}件のスキャン結果 {activeFile && `(${activeFile.name})`}
+                  選択範囲内: {displayResults.length}件 / 全{fileFilteredResults.length}件 {activeFile && `(${activeFile.name})`}
                 </p>
               </div>
             </div>
@@ -1086,16 +1198,9 @@ export default function JobResultsPage() {
               >
                 <PanelLeft className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setIsEditMode(!isEditMode)}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                  isEditMode 
-                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' 
-                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200'
-                }`}
-              >
-                {isEditMode ? '編集モード' : '表示モード'}
-              </button>
+              <div className="px-3 py-1.5 text-xs font-medium rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                スキャンモード
+              </div>
               <Link href={`/jobs/${job.id}`}>
                 <Button variant="ghost" size="sm" className="gap-1.5">
                   <Info className="w-4 h-4" />
@@ -1140,115 +1245,62 @@ export default function JobResultsPage() {
                   onTabClose={handleTabClose}
                 />
 
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex-1" />
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={handleZoomOut}
-                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                      title="ズームアウト"
-                    >
-                      <ZoomOut className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    </button>
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[50px] text-center">
-                      {Math.round(zoomLevel * 100)}%
+                {/* Scan Controls */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-700">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-purple-500" />
+                    <span className="text-xs text-purple-700 dark:text-purple-300 font-medium">
+                      紫色の枠をドラッグしてスキャン範囲を調整
                     </span>
-                    <button
-                      onClick={handleZoomIn}
-                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                      title="ズームイン"
-                    >
-                      <ZoomIn className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    </button>
-                    <button
-                      onClick={handleResetZoom}
-                      className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                    >
-                      リセット
-                    </button>
-                    {selectedResult && (
-                      <button
-                        onClick={() => handleResultSelect(selectedResult, { zoomToFit: true })}
-                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                        title="選択エリアにフィット"
-                      >
-                        <Maximize2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      </button>
-                    )}
                   </div>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => {
+                      // Reset selection box to full image
+                      if (imageDimensions.width > 0) {
+                        const margin = 0.05;
+                        setScanSelectionBox({
+                          x: imageDimensions.width * margin,
+                          y: imageDimensions.height * margin,
+                          width: imageDimensions.width * (1 - 2 * margin),
+                          height: imageDimensions.height * (1 - 2 * margin)
+                        });
+                      }
+                    }}
+                    className="px-2 py-1 text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded transition-colors"
+                  >
+                    範囲をリセット
+                  </button>
                 </div>
 
-                {/* Canvas Area */}
+                {/* Canvas Area with Scan Mode */}
                 <div 
-                  ref={canvasRef}
-                  className={`flex-1 overflow-hidden relative bg-gray-100 dark:bg-gray-950 ${isEditMode ? 'cursor-crosshair' : 'cursor-move'}`}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
+                  ref={drawCanvasRef}
+                  className="flex-1 overflow-hidden relative bg-gray-100 dark:bg-gray-950"
                 >
-                  <div 
-                    className="absolute inset-0 flex items-center justify-center"
-                    style={{
-                      transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
-                      transformOrigin: 'center'
-                    }}
-                  >
-                    {activeFile?.preview ? (
-                      <div className="relative">
-                        <Image
-                          src={activeFile.preview}
-                          alt={activeFile.name}
-                          width={imageDimensions.width}
-                          height={imageDimensions.height}
-                          className="rounded shadow-lg"
-                          unoptimized
-                          onLoadingComplete={({ naturalWidth, naturalHeight }) => {
-                            setImageDimensions({ width: naturalWidth, height: naturalHeight });
-                          }}
-                        />
-                        {/* Polygon Overlays for scanned elements */}
-                        <PolygonOverlay
-                          polygons={showAllHighlights 
-                            ? scanPolygonData 
-                            : scanPolygonData.filter(p => p.id === selectedResult?.id)
-                          }
-                          containerWidth={imageDimensions.width}
-                          containerHeight={imageDimensions.height}
-                          imageWidth={imageDimensions.width}
-                          imageHeight={imageDimensions.height}
-                          scale={1}
-                          offsetX={0}
-                          offsetY={0}
-                          selectedPolygonId={selectedResult?.id}
-                          onPolygonSelect={(id) => {
-                            const result = fileFilteredResults.find(r => r.id === id);
-                            if (result) setSelectedResult(result);
-                          }}
-                          onPolygonDrag={handlePolygonDrag}
-                          isEditable={isEditMode}
-                          editMode="polygon"
-                        />
-                      </div>
-                    ) : (
-                      <div className="text-center text-gray-500 dark:text-gray-400">
+                  {activeFile?.preview ? (
+                    <AnnotoriousOverlay
+                      annotations={[]} // No individual annotations in scan mode
+                      imageUrl={activeFile.preview}
+                      selectedAnnotationId={null}
+                      onAnnotationSelect={() => {}}
+                      onAnnotationUpdate={() => {}}
+                      isEditable={true} // Always editable in scan mode for resizing
+                      showAllAnnotations={false}
+                      onImageLoad={(dims) => setImageDimensions(dims)}
+                      className="w-full h-full"
+                      // Scan mode specific props
+                      scanMode={true}
+                      selectionBox={scanSelectionBox}
+                      onSelectionBoxChange={setScanSelectionBox}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                      <div className="text-center">
                         <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
                         <p>ファイルを選択してください</p>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Navigation Footer */}
-                <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    スクロール: ズーム | ドラッグ: パン | クリック: 選択
-                  </span>
-                  {selectedResult && (
-                    <span className="text-gray-700 dark:text-gray-300 font-medium">
-                      選択中: {selectedResult.matchedElement || selectedResult.elementType}
-                    </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1259,13 +1311,46 @@ export default function JobResultsPage() {
             {/* Right Panel: Scan Items */}
             <Panel defaultSize={30} minSize={20} maxSize={40}>
               <ScanItemsPanel
-                results={fileFilteredResults.map(r => ({
+                results={displayResults.map(r => ({
                   ...r,
                   fileId: r.fileId || activeFileId
                 }))}
                 activeFileId={activeFileId}
                 selectedResultId={selectedResult?.id}
                 onResultSelect={handleResultSelect}
+                onUpdateAction={(id, action) => {
+                  setInternalResults(prev => {
+                    const exists = prev.find(r => r.id === id);
+                    if (exists) {
+                      return prev.map(r => r.id === id ? { ...r, userAction: action } : r);
+                    }
+                    // If updating an original result, add to internal results
+                    const original = results.find(r => r.id === id);
+                    if (original) {
+                      return [...prev, { ...original, userAction: action }];
+                    }
+                    return prev;
+                  });
+                }}
+                onAdd={() => {
+                  const newItem = {
+                    id: `scan-new-${Date.now()}`,
+                    fileId: activeFileId,
+                    fileName: job.files?.find(f => f.id === activeFileId)?.name || 'unknown',
+                    page: 1,
+                    elementType: 'figure',
+                    tagName: '新規要素',
+                    tagCategory: 'detail_view',
+                    confidence: 0.5,
+                    aiComment: 'AI分析中...',
+                    userAction: 'pending',
+                    userComment: '',
+                    polygon: [[150, 150], [350, 150], [350, 350], [150, 350]],
+                    boundingBox: { x: 150, y: 150, width: 200, height: 200 }
+                  };
+                  setInternalResults(prev => [...prev, newItem]);
+                  setSelectedResult(newItem);
+                }}
                 showAllHighlights={showAllHighlights}
                 onToggleShowAll={() => setShowAllHighlights(prev => !prev)}
                 autoZoom={autoZoom}

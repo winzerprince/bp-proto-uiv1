@@ -121,7 +121,7 @@ export function InspectionCardsPanel({
         <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <div className="flex items-center justify-between mb-1">
             <label className="text-[10px] font-medium text-foreground-light">信頼度フィルター</label>
-            <span className="text-[10px] font-medium text-primary">{confidenceThreshold}%以上</span>
+            <span className="text-[10px] font-medium text-primary">{confidenceThreshold === 0 ? '全て表示' : `${confidenceThreshold}%以上`}</span>
           </div>
           <input
             type="range"
