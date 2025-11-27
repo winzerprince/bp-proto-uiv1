@@ -23,16 +23,25 @@ import {
   Tag,
   ZoomIn,
   ZoomOut,
+  PanelLeft,
+  Maximize2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Select, Input, Textarea, LoadingSpinner, Modal } from '@/components/ui';
 import { ImageViewer } from '@/components/ImageViewer';
 import { 
+  FileListPanel, 
+  FileTabs, 
+  InspectionCardsPanel, 
+  PolygonOverlay,
+  ScanItemsPanel 
+} from '@/components/inspection';
+import { 
   getJobById, 
   getInspectionResults, 
   getBOMResults, 
-  getSearchResults 
+  getScanResults 
 } from '@/lib/mock-data';
 
 export default function JobResultsPage() {
@@ -49,15 +58,29 @@ export default function JobResultsPage() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkThreshold, setBulkThreshold] = useState(90);
   
+  // Multi-file management states
+  const [activeFileId, setActiveFileId] = useState(null);
+  const [openedFileIds, setOpenedFileIds] = useState([]);
+  const [showFileList, setShowFileList] = useState(true);
+  
   // Inspection-specific states
-  const [activeTab, setActiveTab] = useState('real'); // 'real', 'blueprint', 'split'
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [expandedCards, setExpandedCards] = useState(new Set());
-  const [commentsVisible, setCommentsVisible] = useState(true);
-  const [commentsSticky, setCommentsSticky] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showAllHighlights, setShowAllHighlights] = useState(true); // Default to showing all highlights
+  const [autoZoom, setAutoZoom] = useState(true); // Default to auto-zoom enabled
+  
+  // Drawing mode for creating new inspection areas
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawStart, setDrawStart] = useState(null);
+  const [drawRect, setDrawRect] = useState(null);
+  
+  // Image dimensions for polygon rendering
+  const [imageDimensions, setImageDimensions] = useState({ width: 800, height: 600 });
+  const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 600 });
   
   // SEARCH-specific states
   const [elementTypeFilters, setElementTypeFilters] = useState(new Set(['text', 'table', 'figure']));
@@ -85,18 +108,236 @@ export default function JobResultsPage() {
       return getInspectionResults(jobId);
     } else if (job.taskType === 'BOM') {
       return getBOMResults(jobId);
-    } else if (job.taskType === 'SEARCH') {
-      return getSearchResults(jobId);
+    } else if (job.taskType === 'SCAN') {
+      return getScanResults(jobId);
     }
     return [];
   }, [jobId, job]);
   
   // Initialize selected result only once when results change
+  // Use a ref to track if initial selection has been made
+  const hasInitializedRef = useRef(false);
+  
   useEffect(() => {
-    if (results.length > 0 && job?.taskType === 'INSPECTION' && !selectedResult) {
+    if (results.length > 0 && job?.taskType === 'INSPECTION' && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      // eslint-disable-next-line react-compiler/react-compiler
       setSelectedResult(results[0]);
     }
-  }, [results, job?.taskType]); // Removed selectedResult from deps to avoid loop
+  }, [results, job?.taskType]);
+
+  // Initialize files from job when loaded
+  const hasInitializedFilesRef = useRef(false);
+  
+  useEffect(() => {
+    if (job?.files && job.files.length > 0 && !hasInitializedFilesRef.current) {
+      hasInitializedFilesRef.current = true;
+      const firstFileId = job.files[0].id;
+      // eslint-disable-next-line react-compiler/react-compiler
+      setActiveFileId(firstFileId);
+      setOpenedFileIds([firstFileId]);
+    }
+  }, [job]);
+
+  // Get results count by file for file list panel
+  const resultsCountByFile = useMemo(() => {
+    const counts = {};
+    results.forEach(r => {
+      const fileId = r.fileId || job?.files?.[0]?.id;
+      counts[fileId] = (counts[fileId] || 0) + 1;
+    });
+    return counts;
+  }, [results, job]);
+
+  // Combine original results with internal (user-created/modified) results
+  const combinedResults = useMemo(() => {
+    // Internal results take precedence for matching IDs
+    const internalIds = new Set(internalResults.map(r => r.id));
+    const originalFiltered = results.filter(r => !internalIds.has(r.id));
+    return [...originalFiltered, ...internalResults];
+  }, [results, internalResults]);
+
+  // Get results filtered by active file
+  const fileFilteredResults = useMemo(() => {
+    if (!activeFileId) return combinedResults;
+    return combinedResults.filter(r => r.fileId === activeFileId || (!r.fileId && job?.files?.[0]?.id === activeFileId));
+  }, [combinedResults, activeFileId, job]);
+
+  // Polygon data for overlay
+  const polygonData = useMemo(() => {
+    return fileFilteredResults
+      .filter(r => r.polygon && r.polygon.length >= 3)
+      .map(r => ({
+        id: r.id,
+        polygon: r.polygon,
+        judgment: r.aiJudgment,
+        type: r.type || r.findingType
+      }));
+  }, [fileFilteredResults]);
+
+  // Handle file selection from file list
+  const handleFileSelect = useCallback((fileId) => {
+    setActiveFileId(fileId);
+    if (!openedFileIds.includes(fileId)) {
+      setOpenedFileIds(prev => [...prev, fileId]);
+    }
+  }, [openedFileIds]);
+
+  // Handle tab close
+  const handleTabClose = useCallback((fileId) => {
+    const newOpenedIds = openedFileIds.filter(id => id !== fileId);
+    setOpenedFileIds(newOpenedIds);
+    if (activeFileId === fileId && newOpenedIds.length > 0) {
+      setActiveFileId(newOpenedIds[newOpenedIds.length - 1]);
+    } else if (newOpenedIds.length === 0) {
+      setActiveFileId(null);
+    }
+  }, [openedFileIds, activeFileId]);
+
+  // Handle result selection with optional zoom
+  const handleResultSelect = useCallback((result, options = {}) => {
+    setSelectedResult(result);
+    
+    // Auto-zoom to fit the polygon in view
+    const shouldZoom = options.zoomToFit || (autoZoom && options.zoomToFit !== false);
+    
+    if (shouldZoom && result.polygon && result.polygon.length > 0) {
+      // Calculate bounding box of polygon
+      const xs = result.polygon.map(p => Array.isArray(p) ? p[0] : p.x);
+      const ys = result.polygon.map(p => Array.isArray(p) ? p[1] : p.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      
+      // Get container dimensions from ref
+      const container = canvasRef.current;
+      const containerWidth = container?.clientWidth || 800;
+      const containerHeight = container?.clientHeight || 600;
+      
+      // Calculate polygon dimensions
+      const polygonWidth = maxX - minX;
+      const polygonHeight = maxY - minY;
+      
+      // Add padding around the polygon (20% of polygon size, min 30px)
+      const paddingX = Math.max(polygonWidth * 0.2, 30);
+      const paddingY = Math.max(polygonHeight * 0.2, 30);
+      
+      // Calculate zoom level to fit polygon with padding in view
+      // Use the smaller of X and Y zoom to ensure both fit
+      const zoomX = containerWidth / (polygonWidth + paddingX * 2);
+      const zoomY = containerHeight / (polygonHeight + paddingY * 2);
+      const newZoom = Math.min(zoomX, zoomY);
+      
+      // Clamp zoom level to reasonable bounds
+      const clampedZoom = Math.max(0.5, Math.min(newZoom, 4));
+      
+      // Calculate pan position to center the polygon
+      // The polygon center in image coordinates
+      const polygonCenterX = (minX + maxX) / 2;
+      const polygonCenterY = (minY + maxY) / 2;
+      
+      // Image center
+      const imageCenterX = imageDimensions.width / 2;
+      const imageCenterY = imageDimensions.height / 2;
+      
+      // Offset from image center to polygon center
+      const offsetFromCenterX = polygonCenterX - imageCenterX;
+      const offsetFromCenterY = polygonCenterY - imageCenterY;
+      
+      // Pan position to center polygon (accounting for zoom)
+      const newPanX = -offsetFromCenterX * clampedZoom;
+      const newPanY = -offsetFromCenterY * clampedZoom;
+      
+      setZoomLevel(clampedZoom);
+      setPanPosition({ x: newPanX, y: newPanY });
+    }
+  }, [imageDimensions, autoZoom]);
+
+  // Handle polygon drag for editing (for scan jobs - vertex editing)
+  const handlePolygonDrag = useCallback((polygonId, cornerIndex, newCoords) => {
+    if (!isEditMode) return;
+    // Update the polygon in internal results
+    setInternalResults(prev => prev.map(r => {
+      if (r.id === polygonId && r.polygon) {
+        const newPolygon = [...r.polygon];
+        newPolygon[cornerIndex] = [newCoords.x, newCoords.y];
+        return { ...r, polygon: newPolygon };
+      }
+      return r;
+    }));
+  }, [isEditMode]);
+
+  // Handle rectangle resize for editing (for inspection jobs - edge resizing)
+  const handleRectangleResize = useCallback((polygonId, edge, newCoords) => {
+    if (!isEditMode) return;
+    // Update the polygon by moving the edge
+    setInternalResults(prev => prev.map(r => {
+      if (r.id === polygonId && r.polygon && r.polygon.length === 4) {
+        // Assume polygon is a rectangle: [topLeft, topRight, bottomRight, bottomLeft]
+        const polygon = r.polygon.map(p => Array.isArray(p) ? [...p] : [p.x, p.y]);
+        
+        switch (edge) {
+          case 'top':
+            polygon[0][1] = newCoords.y;
+            polygon[1][1] = newCoords.y;
+            break;
+          case 'bottom':
+            polygon[2][1] = newCoords.y;
+            polygon[3][1] = newCoords.y;
+            break;
+          case 'left':
+            polygon[0][0] = newCoords.x;
+            polygon[3][0] = newCoords.x;
+            break;
+          case 'right':
+            polygon[1][0] = newCoords.x;
+            polygon[2][0] = newCoords.x;
+            break;
+        }
+        
+        return { ...r, polygon };
+      }
+      return r;
+    }));
+  }, [isEditMode]);
+
+  // Handle add new inspection item
+  const handleAddInspectionItem = useCallback(() => {
+    // Create a new inspection item with default values
+    const newItem = {
+      id: `insp-new-${Date.now()}`,
+      fileId: activeFileId,
+      type: '新規検査項目',
+      findingType: '新規検査項目',
+      aiJudgment: 'WARNING',
+      confidence: 0.5,
+      aiComment: '新規追加された検査項目です。詳細を編集してください。',
+      userAction: 'unconfirmed',
+      userComment: '',
+      polygon: [[100, 100], [200, 100], [200, 200], [100, 200]],
+      boundingBox: { x: 100, y: 100, width: 100, height: 100 }
+    };
+    setInternalResults(prev => [...prev, newItem]);
+    setSelectedResult(newItem);
+  }, [activeFileId]);
+
+  // Handle delete inspection item
+  const handleDeleteInspectionItem = useCallback((result) => {
+    if (window.confirm(`「${result.findingType || result.type}」を削除してもよろしいですか？`)) {
+      setInternalResults(prev => prev.filter(r => r.id !== result.id));
+      if (selectedResult?.id === result.id) {
+        setSelectedResult(null);
+      }
+    }
+  }, [selectedResult]);
+
+  // Handle edit inspection item
+  const handleEditInspectionItem = useCallback((result) => {
+    // For now, just select and enable edit mode
+    setSelectedResult(result);
+    setIsEditMode(true);
+  }, []);
 
   // Memoize filtered results to avoid unnecessary recalculations and cascading renders
   const filteredResults = useMemo(() => {
@@ -165,25 +406,118 @@ export default function JobResultsPage() {
     setZoomLevel(prev => Math.max(0.5, Math.min(3, prev + delta)));
   }, []);
 
+  // Get image coordinates from mouse event
+  const getImageCoords = useCallback((e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    
+    const rect = canvas.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    // Calculate position relative to image center with zoom and pan applied
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Reverse the transform to get image coordinates
+    const imageX = (mouseX - centerX - panPosition.x) / zoomLevel + imageDimensions.width / 2;
+    const imageY = (mouseY - centerY - panPosition.y) / zoomLevel + imageDimensions.height / 2;
+    
+    return { x: imageX, y: imageY };
+  }, [panPosition, zoomLevel, imageDimensions]);
+
   const handleMouseDown = useCallback((e) => {
     if (e.button === 0) { // Left click
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+      // If in edit mode, start drawing
+      if (isEditMode) {
+        const coords = getImageCoords(e);
+        if (coords) {
+          setIsDrawing(true);
+          setDrawStart(coords);
+          setDrawRect({ startX: coords.x, startY: coords.y, endX: coords.x, endY: coords.y });
+        }
+      } else {
+        // Normal panning mode
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+      }
     }
-  }, [panPosition]);
+  }, [panPosition, isEditMode, getImageCoords]);
 
   const handleMouseMove = useCallback((e) => {
-    if (isPanning) {
+    if (isDrawing && drawStart) {
+      const coords = getImageCoords(e);
+      if (coords) {
+        setDrawRect(prev => prev ? { ...prev, endX: coords.x, endY: coords.y } : null);
+      }
+    } else if (isPanning) {
       setPanPosition({
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y
       });
     }
-  }, [isPanning, panStart]);
+  }, [isPanning, panStart, isDrawing, drawStart, getImageCoords]);
 
   const handleMouseUp = useCallback(() => {
+    // If we were drawing, create a new inspection item
+    if (isDrawing && drawRect) {
+      const minX = Math.min(drawRect.startX, drawRect.endX);
+      const maxX = Math.max(drawRect.startX, drawRect.endX);
+      const minY = Math.min(drawRect.startY, drawRect.endY);
+      const maxY = Math.max(drawRect.startY, drawRect.endY);
+      
+      // Only create if the drawn area is large enough
+      if (Math.abs(maxX - minX) > 20 && Math.abs(maxY - minY) > 20) {
+        // Create a new inspection item with the drawn rectangle as polygon
+        const newItem = {
+          id: `insp-drawn-${Date.now()}`,
+          fileId: activeFileId,
+          type: '新規検査項目',
+          findingType: '新規検査項目',
+          aiJudgment: 'WARNING',
+          confidence: 0.5,
+          aiComment: 'AI分析中...',
+          aiInference: 'ユーザーが指定したエリアを分析しています。',
+          userAction: 'unconfirmed',
+          userComment: '',
+          polygon: [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]],
+          boundingBox: { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+        };
+        
+        // Simulate AI processing with a delay
+        setTimeout(() => {
+          setInternalResults(prev => prev.map(r => {
+            if (r.id === newItem.id) {
+              // Simulate AI analysis result
+              const judgments = ['OK', 'NG', 'WARNING'];
+              const randomJudgment = judgments[Math.floor(Math.random() * judgments.length)];
+              const randomConfidence = 0.65 + Math.random() * 0.3;
+              return {
+                ...r,
+                aiJudgment: randomJudgment,
+                confidence: randomConfidence,
+                aiComment: randomJudgment === 'OK' 
+                  ? '指定エリアは問題ありません。図面と一致しています。'
+                  : randomJudgment === 'NG'
+                  ? '指定エリアで不整合が検出されました。確認が必要です。'
+                  : '指定エリアで軽微な問題が検出されました。',
+                aiInference: 'AI分析が完了しました。'
+              };
+            }
+            return r;
+          }));
+        }, 1500);
+        
+        setInternalResults(prev => [...prev, newItem]);
+        setSelectedResult(newItem);
+      }
+      
+      setDrawRect(null);
+      setDrawStart(null);
+      setIsDrawing(false);
+    }
     setIsPanning(false);
-  }, []);
+  }, [isDrawing, drawRect, activeFileId]);
   
   const handleZoomIn = useCallback(() => {
     setZoomLevel(prev => Math.min(3, prev + 0.1));
@@ -300,55 +634,64 @@ export default function JobResultsPage() {
 
   // Render functions for different job types
   const renderInspectionResults = () => {
-    const currentIndex = filteredResults.findIndex(r => r.id === selectedResult?.id);
-    const hasNext = currentIndex < filteredResults.length - 1;
-    const hasPrev = currentIndex > 0;
-    const getJudgmentIcon = (judgment) => {
-      switch (judgment) {
-        case 'OK': return CheckCircle;
-        case 'NG': return AlertCircle;
-        case 'WARNING': return AlertTriangle;
-        default: return AlertCircle;
-      }
-    };
-
+    // Get active file info
+    const activeFile = job.files?.find(f => f.id === activeFileId) || job.files?.[0];
+    
     return (
-      <div className="h-screen flex flex-col bg-[#F9FAFB]">
+      <div className="h-screen flex flex-col bg-[#F9FAFB] dark:bg-gray-900">
         {/* Fixed Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
                 href="/jobs"
-                className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  {job.name} - 検図結果
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {job.name} - BP Check結果
                 </h1>
-                <p className="text-sm text-gray-600">
-                  {filteredResults.length}件の検出結果
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {fileFilteredResults.length}件の検出結果 {activeFile && `(${activeFile.name})`}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFileList(!showFileList)}
+                className={`p-2 rounded transition-colors ${showFileList ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                title={showFileList ? 'ファイル一覧を非表示' : 'ファイル一覧を表示'}
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setIsEditMode(!isEditMode)}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  isEditMode 
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' 
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                }`}
+              >
+                {isEditMode ? '編集モード' : '表示モード'}
+              </button>
               <Link href={`/jobs/${job.id}`}>
-                <Button variant="ghost" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-1.5">
                   <Info className="w-4 h-4" />
-                  メタデータを表示
+                  詳細
                 </Button>
               </Link>
               <Button
                 variant="secondary"
+                size="sm"
                 onClick={() => setShowBulkModal(true)}
-                className="gap-2"
+                className="gap-1.5"
               >
                 <CheckCircle className="w-4 h-4" />
                 一括確認
               </Button>
-              <Button variant="primary" className="gap-2">
+              <Button variant="primary" size="sm" className="gap-1.5">
                 <Download className="w-4 h-4" />
                 エクスポート
               </Button>
@@ -356,80 +699,81 @@ export default function JobResultsPage() {
           </div>
         </header>
 
-        {/* Resizable Split Pane Content */}
+        {/* Main Content - 3 Panel Layout */}
         <div className="flex-1 overflow-hidden">
           <PanelGroup direction="horizontal">
-            {/* Left: Canvas with Tabs */}
-            <Panel defaultSize={60} minSize={30}>
-              <div className="h-full flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200">
-                {/* Tabs */}
-                <div className="flex items-center gap-1 px-4 pt-4 pb-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200">
-                  <button
-                    onClick={() => setActiveTab('real')}
-                    className={`px-4 py-2 rounded-t text-sm font-medium transition-colors ${
-                      activeTab === 'real'
-                        ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white border-t border-x border-gray-300'
-                        : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    実画像
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('blueprint')}
-                    className={`px-4 py-2 rounded-t text-sm font-medium transition-colors ${
-                      activeTab === 'blueprint'
-                        ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white border-t border-x border-gray-300'
-                        : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    図面
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('split')}
-                    className={`px-4 py-2 rounded-t text-sm font-medium transition-colors ${
-                      activeTab === 'split'
-                        ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white border-t border-x border-gray-300'
-                        : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    比較表示
-                  </button>
+            {/* Left Panel: File List */}
+            {showFileList && (
+              <>
+                <Panel defaultSize={15} minSize={12} maxSize={25}>
+                  <FileListPanel
+                    files={job.files || []}
+                    activeFileId={activeFileId}
+                    onFileSelect={handleFileSelect}
+                    resultsCountByFile={resultsCountByFile}
+                  />
+                </Panel>
+                <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary transition-colors cursor-col-resize" />
+              </>
+            )}
+
+            {/* Center Panel: Canvas with File Tabs */}
+            <Panel defaultSize={showFileList ? 55 : 65} minSize={40}>
+              <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+                {/* File Tabs */}
+                <FileTabs
+                  files={job.files || []}
+                  openedFileIds={openedFileIds}
+                  activeFileId={activeFileId}
+                  onTabSelect={handleFileSelect}
+                  onTabClose={handleTabClose}
+                />
+
+                {/* Zoom Controls Only (View Mode Tabs Removed) */}
+                <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex-1" />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={handleZoomOut}
-                      className="p-1.5 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors"
+                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                       title="ズームアウト"
                     >
-                      <ZoomOut className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                      <ZoomOut className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                     </button>
-                    <div className="text-gray-900 dark:text-white text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded font-medium min-w-[80px] text-center">
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[50px] text-center">
                       {Math.round(zoomLevel * 100)}%
-                    </div>
+                    </span>
                     <button
                       onClick={handleZoomIn}
-                      className="p-1.5 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors"
+                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                       title="ズームイン"
                     >
-                      <ZoomIn className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                      <ZoomIn className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                     </button>
                     <button
                       onClick={handleResetZoom}
-                      className="text-xs px-2 py-1.5 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors text-gray-700 dark:text-gray-300 font-medium"
-                      title="リセット"
+                      className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                     >
                       リセット
                     </button>
-                  </div>
-                  <div className="text-gray-600 dark:text-gray-400 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">
-                    スクロール: ズーム | 左ドラッグ: パン
+                    {selectedResult && (
+                      <button
+                        onClick={() => handleResultSelect(selectedResult, { zoomToFit: true })}
+                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                        title="選択エリアにフィット"
+                      >
+                        <Maximize2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Canvas */}
+                {/* Canvas Area */}
                 <div 
                   ref={canvasRef}
-                  className="flex-1 overflow-hidden relative cursor-move bg-gray-50 dark:bg-gray-900"
+                  className={`flex-1 overflow-hidden relative bg-gray-100 dark:bg-gray-950 ${
+                    isEditMode ? 'cursor-crosshair' : 'cursor-move'
+                  }`}
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
@@ -442,398 +786,113 @@ export default function JobResultsPage() {
                       transformOrigin: 'center'
                     }}
                   >
-                    {activeTab === 'split' ? (
-                      <div className="flex gap-4 flex-shrink-0">
-                        {/* Real Image */}
-                        <div className="relative flex-shrink-0">
-                          <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 text-xs rounded z-10">
-                            実画像
-                          </div>
-                          {selectedResult && job.files[0]?.preview ? (
-                            <div className="relative w-[400px] h-[300px] overflow-hidden flex-shrink-0">
-                              <Image
-                                src={job.files[0].preview}
-                                alt="Real"
-                                width={400}
-                                height={300}
-                                className="rounded shadow-lg border-2 border-blue-500 object-contain"
-                                style={{ maxWidth: '400px', maxHeight: '300px' }}
-                                unoptimized
-                              />
-                              {selectedResult.boundingBox && (
-                                <div
-                                  className="absolute border-4 border-yellow-400 bg-yellow-400/20 animate-pulse pointer-events-none"
-                                  style={{
-                                    left: selectedResult.boundingBox.x / 2,
-                                    top: selectedResult.boundingBox.y / 2,
-                                    width: selectedResult.boundingBox.width / 2,
-                                    height: selectedResult.boundingBox.height / 2,
-                                  }}
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-[400px] h-[300px] bg-gray-800 rounded flex items-center justify-center flex-shrink-0">
-                              <Eye className="w-12 h-12 text-gray-600" />
-                            </div>
-                          )}
-                        </div>
-                        {/* Blueprint */}
-                        <div className="relative flex-shrink-0">
-                          <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-1 text-xs rounded z-10">
-                            図面
-                          </div>
-                          {selectedResult && job.files[0]?.preview ? (
-                            <div className="relative w-[400px] h-[300px] overflow-hidden flex-shrink-0">
-                              <Image
-                                src={job.files[0].preview}
-                                alt="Blueprint"
-                                width={400}
-                                height={300}
-                                className="rounded shadow-lg border-2 border-purple-500 object-contain"
-                                style={{ maxWidth: '400px', maxHeight: '300px' }}
-                                unoptimized
-                              />
-                              {selectedResult.boundingBox && (
-                                <div
-                                  className="absolute border-4 border-red-500 bg-red-500/20 animate-pulse pointer-events-none"
-                                  style={{
-                                    left: selectedResult.boundingBox.x / 2,
-                                    top: selectedResult.boundingBox.y / 2,
-                                    width: selectedResult.boundingBox.width / 2,
-                                    height: selectedResult.boundingBox.height / 2,
-                                  }}
-                                >
-                                  <div className="absolute -top-6 left-0 bg-red-500 text-white px-2 py-0.5 text-xs rounded shadow-lg">
-                                    {selectedResult.type}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-[400px] h-[300px] bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center flex-shrink-0">
-                              <Eye className="w-12 h-12 text-gray-400" />
-                            </div>
-                          )}
-                        </div>
+                    {activeFile?.preview ? (
+                      <div className="relative">
+                        <Image
+                          src={activeFile.preview}
+                          alt={activeFile.name}
+                          width={imageDimensions.width}
+                          height={imageDimensions.height}
+                          className="rounded shadow-lg"
+                          unoptimized
+                          onLoadingComplete={({ naturalWidth, naturalHeight }) => {
+                            setImageDimensions({ width: naturalWidth, height: naturalHeight });
+                          }}
+                        />
+                        {/* Polygon Overlays - conditionally show all or just selected */}
+                        <PolygonOverlay
+                          polygons={showAllHighlights 
+                            ? polygonData 
+                            : polygonData.filter(p => p.id === selectedResult?.id)
+                          }
+                          containerWidth={imageDimensions.width}
+                          containerHeight={imageDimensions.height}
+                          imageWidth={imageDimensions.width}
+                          imageHeight={imageDimensions.height}
+                          scale={1}
+                          offsetX={0}
+                          offsetY={0}
+                          selectedPolygonId={selectedResult?.id}
+                          onPolygonSelect={(id) => {
+                            const result = fileFilteredResults.find(r => r.id === id);
+                            if (result) setSelectedResult(result);
+                          }}
+                          onPolygonDrag={handlePolygonDrag}
+                          onRectangleResize={handleRectangleResize}
+                          isEditable={isEditMode}
+                          editMode="rectangle"
+                        />
+                        
+                        {/* Drawing rectangle preview when in edit mode */}
+                        {isEditMode && drawRect && (
+                          <svg
+                            className="absolute inset-0 pointer-events-none"
+                            width={imageDimensions.width}
+                            height={imageDimensions.height}
+                          >
+                            <rect
+                              x={Math.min(drawRect.startX, drawRect.endX)}
+                              y={Math.min(drawRect.startY, drawRect.endY)}
+                              width={Math.abs(drawRect.endX - drawRect.startX)}
+                              height={Math.abs(drawRect.endY - drawRect.startY)}
+                              fill="rgba(59, 130, 246, 0.2)"
+                              stroke="#3b82f6"
+                              strokeWidth={2}
+                              strokeDasharray="4,4"
+                            />
+                          </svg>
+                        )}
                       </div>
                     ) : (
-                      <div className="relative">
-                        {selectedResult && job.files[0]?.preview ? (
-                          <div className="relative">
-                            <Image
-                              src={job.files[0].preview}
-                              alt={activeTab === 'real' ? 'Real Image' : 'Blueprint'}
-                              width={800}
-                              height={600}
-                              className="rounded shadow-lg"
-                              unoptimized
-                            />
-                            {activeTab === 'blueprint' && selectedResult.boundingBox && (
-                              <div
-                                className="absolute border-4 border-red-500 bg-red-500/20 animate-pulse"
-                                style={{
-                                  left: selectedResult.boundingBox.x,
-                                  top: selectedResult.boundingBox.y,
-                                  width: selectedResult.boundingBox.width,
-                                  height: selectedResult.boundingBox.height,
-                                }}
-                              >
-                                <div className="absolute -top-8 left-0 bg-red-500 text-white px-2 py-1 text-xs font-medium rounded shadow-lg">
-                                  {selectedResult.type}
-                                </div>
-                              </div>
-                            )}
-                            {activeTab === 'real' && selectedResult.boundingBox && (
-                              <div
-                                className="absolute border-4 border-yellow-400 bg-yellow-400/20 animate-pulse"
-                                style={{
-                                  left: selectedResult.boundingBox.x,
-                                  top: selectedResult.boundingBox.y,
-                                  width: selectedResult.boundingBox.width,
-                                  height: selectedResult.boundingBox.height,
-                                }}
-                              />
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-center text-gray-500 dark:text-gray-400">
-                            <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                            <p>結果を選択すると画像が表示されます</p>
-                          </div>
-                        )}
+                      <div className="text-center text-gray-500 dark:text-gray-400">
+                        <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                        <p>ファイルを選択してください</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Navigation Controls */}
-                {selectedResult && (
-                  <div className="bg-gray-100 dark:bg-gray-800 border-t border-gray-300 dark:border-gray-700 px-6 py-3 flex items-center justify-between">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => hasPrev && setSelectedResult(filteredResults[currentIndex - 1])}
-                      disabled={!hasPrev}
-                      className="gap-2 disabled:opacity-50"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      前へ
-                    </Button>
-                    <span className="text-gray-900 dark:text-white text-sm font-medium">
-                      {currentIndex + 1} / {filteredResults.length}
+                {/* Navigation Footer */}
+                <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {isEditMode 
+                      ? 'ドラッグ: 検査エリアを作成 | スクロール: ズーム'
+                      : 'スクロール: ズーム | ドラッグ: パン | クリック: 選択'
+                    }
+                  </span>
+                  {selectedResult && (
+                    <span className="text-gray-700 dark:text-gray-300 font-medium">
+                      選択中: {selectedResult.findingType || selectedResult.type}
                     </span>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => hasNext && setSelectedResult(filteredResults[currentIndex + 1])}
-                      disabled={!hasNext}
-                      className="gap-2 disabled:opacity-50"
-                    >
-                      次へ
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </Panel>
 
-            {/* Resize Handle */}
-            <PanelResizeHandle className="w-2 bg-gray-300 hover:bg-blue-500 transition-colors cursor-col-resize flex items-center justify-center group">
-              <div className="w-1 h-8 bg-gray-400 rounded group-hover:bg-blue-600" />
-            </PanelResizeHandle>
+            <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary transition-colors cursor-col-resize" />
 
-            {/* Right: Results List */}
-            <Panel defaultSize={40} minSize={25}>
-              <div className="h-full flex flex-col bg-white overflow-hidden">
-                {/* Filters */}
-                <div className="border-b border-gray-200 p-4 space-y-3 shrink-0">
-                  <Input
-                    placeholder="検索..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="text-sm"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select
-                      value={judgmentFilter}
-                      onChange={(e) => setJudgmentFilter(e.target.value)}
-                      className="text-sm"
-                    >
-                      <option value="all">すべての判定</option>
-                      <option value="OK">OK</option>
-                      <option value="NG">NG</option>
-                      <option value="WARNING">警告</option>
-                    </Select>
-                    <Select
-                      value={actionFilter}
-                      onChange={(e) => setActionFilter(e.target.value)}
-                      className="text-sm"
-                    >
-                      <option value="all">すべてのアクション</option>
-                      <option value="pending">未確認</option>
-                      <option value="confirmed">確認済み</option>
-                      <option value="needs_fix">要修正</option>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">
-                      信頼度: {confidenceFilter}% 以上
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={confidenceFilter}
-                      onChange={(e) => setConfidenceFilter(Number(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-
-                {/* Results List */}
-                <div className="flex-1 overflow-y-auto">
-                  {filteredResults.map((result) => {
-                    const JudgmentIcon = getJudgmentIcon(result.aiJudgment);
-                    const isSelected = result.id === selectedResult?.id;
-                    const isExpanded = expandedCards.has(result.id);
-
-                    return (
-                      <div
-                        key={result.id}
-                        className={`border-b border-gray-200 ${
-                          isSelected ? 'bg-blue-50 border-l-4 border-l-[#004080]' : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div
-                          onClick={() => {
-                            setSelectedResult(result);
-                            toggleCardExpansion(result.id);
-                          }}
-                          className="p-4 cursor-pointer"
-                        >
-                          <div className="flex items-start gap-3 mb-2">
-                            <JudgmentIcon className={`w-5 h-5 shrink-0 mt-0.5 ${
-                              result.aiJudgment === 'OK' ? 'text-green-600' :
-                              result.aiJudgment === 'NG' ? 'text-red-600' : 'text-amber-600'
-                            }`} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium text-gray-900">
-                                  {result.type}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs px-2 py-0.5 rounded border ${
-                                    result.aiJudgment === 'OK' ? 'text-green-600 bg-green-50 border-green-200' :
-                                    result.aiJudgment === 'NG' ? 'text-red-600 bg-red-50 border-red-200' :
-                                    'text-amber-600 bg-amber-50 border-amber-200'
-                                  }`}>
-                                    {result.aiJudgment}
-                                  </span>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleCardExpansion(result.id);
-                                    }}
-                                    className="text-gray-500 hover:text-gray-700"
-                                  >
-                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                  </button>
-                                </div>
-                              </div>
-                              <p className="text-xs text-gray-600 mb-2">
-                                {result.aiComment}
-                              </p>
-                              
-                              {/* Expanded Details */}
-                              {isExpanded && (
-                                <div className="mt-3 p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 rounded-lg space-y-3 text-xs border border-blue-100 dark:border-gray-600">
-                                  <div className="pb-2 border-b border-blue-200 dark:border-gray-600">
-                                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
-                                      <Info className="w-3 h-3" />
-                                      AI詳細分析
-                                    </span>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
-                                      座標: X:{result.boundingBox?.x || 0}, Y:{result.boundingBox?.y || 0}<br />
-                                      サイズ: {result.boundingBox?.width || 0}×{result.boundingBox?.height || 0}px<br />
-                                      検出ファイル: {result.evidenceFile} (Page {result.evidencePage})<br />
-                                      処理時間: 2.3秒<br />
-                                      モデル: GPT-4 Vision + Custom Blueprint Analyzer
-                                    </p>
-                                  </div>
-                                  <div className="pb-2 border-b border-blue-200 dark:border-gray-600">
-                                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
-                                      <AlertCircle className="w-3 h-3" />
-                                      AI推論
-                                    </span>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
-                                      {result.aiJudgment === 'NG' 
-                                        ? `実画像と図面を比較した結果、${result.type}において不一致が検出されました。画像解析により、実際の施工内容が設計図面の仕様と異なることが確認されています。信頼度${Math.round(result.confidence * 100)}%で不適合と判定しています。`
-                                        : result.aiJudgment === 'WARNING'
-                                        ? `${result.type}において潜在的な問題が検出されました。完全な不一致ではありませんが、詳細な確認が必要な状態です。測定誤差や角度の違いにより、判定が難しい箇所となっています。`
-                                        : `${result.type}において実画像と図面の整合性が確認されました。視覚的な解析と寸法チェックの両方で問題は検出されませんでした。施工は設計通りに実施されていると判断されます。`}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
-                                      <CheckCircle className="w-3 h-3" />
-                                      AI推奨事項
-                                    </span>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
-                                      {result.aiJudgment === 'NG' 
-                                        ? `【緊急対応必要】構造設計者と施工図作成者に即座に連絡してください。不一致の原因を特定し、是正措置を検討する必要があります。現場確認を実施し、再施工の要否を判断してください。関係者会議の開催を推奨します。`
-                                        : result.aiJudgment === 'WARNING'
-                                        ? `【要確認】現場で実測を行い、実際の寸法や配置を確認してください。写真の撮影角度を変えて再撮影することで、より正確な判定が可能になる場合があります。必要に応じて設計者に問い合わせてください。`
-                                        : `【対応不要】問題は検出されていません。確認済みとしてマークし、次の検査項目に進んでください。記録として保管し、完了報告書に含めることができます。`}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="flex items-center justify-between mt-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-500">
-                                    信頼度: {Math.round(result.confidence * 100)}%
-                                  </span>
-                                  <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-[#004080]"
-                                      style={{ width: `${result.confidence * 100}%` }}
-                                    />
-                                  </div>
-                                </div>
-                                <span className={`text-xs px-2 py-0.5 rounded ${
-                                  result.userAction === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                  result.userAction === 'needs_fix' ? 'bg-red-100 text-red-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {result.userAction === 'confirmed' ? '確認済み' :
-                                   result.userAction === 'needs_fix' ? '要修正' : '未確認'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Comments Section */}
-                {selectedResult && (
-                  <div className={`border-t border-gray-200 bg-gray-50 transition-all duration-300 ${
-                    commentsSticky ? 'sticky bottom-0' : ''
-                  } ${commentsVisible ? 'p-4' : 'p-2'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-gray-600" />
-                        <h3 className="text-sm font-semibold text-gray-900">
-                          コメント & アクション
-                        </h3>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setCommentsSticky(!commentsSticky)}
-                          className={`p-1 rounded hover:bg-gray-200 transition-colors ${
-                            commentsSticky ? 'bg-blue-100 text-blue-600' : 'text-gray-500'
-                          }`}
-                          title={commentsSticky ? '固定解除' : '下部に固定'}
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setCommentsVisible(!commentsVisible)}
-                          className="p-1 rounded hover:bg-gray-200 text-gray-500"
-                          title={commentsVisible ? '折りたたむ' : '展開する'}
-                        >
-                          {commentsVisible ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {commentsVisible && (
-                      <>
-                        <Select
-                          value={selectedResult.userAction}
-                          onChange={(e) => handleUpdateUserAction(selectedResult.id, e.target.value)}
-                          className="mb-3 text-sm"
-                        >
-                          <option value="pending">未確認</option>
-                          <option value="confirmed">確認済み</option>
-                          <option value="needs_fix">要修正</option>
-                        </Select>
-                        <Textarea
-                          placeholder="コメントを入力..."
-                          value={selectedResult.userComment}
-                          onChange={(e) => handleUpdateUserComment(selectedResult.id, e.target.value)}
-                          rows={3}
-                          className="text-sm"
-                        />
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+            {/* Right Panel: Inspection Cards */}
+            <Panel defaultSize={30} minSize={20} maxSize={40}>
+              <InspectionCardsPanel
+                results={fileFilteredResults.map(r => ({
+                  ...r,
+                  fileId: r.fileId || activeFileId,
+                  findingType: r.findingType || r.type
+                }))}
+                activeFileId={activeFileId}
+                selectedResultId={selectedResult?.id}
+                onResultSelect={handleResultSelect}
+                onEdit={handleEditInspectionItem}
+                onDelete={handleDeleteInspectionItem}
+                onAdd={handleAddInspectionItem}
+                onUpdateAction={handleUpdateUserAction}
+                showAllHighlights={showAllHighlights}
+                onToggleShowAll={() => setShowAllHighlights(prev => !prev)}
+                autoZoom={autoZoom}
+                onToggleAutoZoom={() => setAutoZoom(prev => !prev)}
+                confidenceFilter={confidenceFilter}
+                onConfidenceFilterChange={setConfidenceFilter}
+              />
             </Panel>
           </PanelGroup>
         </div>
@@ -855,11 +914,11 @@ export default function JobResultsPage() {
           }
         >
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               信頼度の高い項目を一括で確認済みにします
             </p>
             <div>
-              <label className="text-sm font-medium text-gray-900 mb-2 block">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2 block">
                 信頼度のしきい値: {bulkThreshold}%
               </label>
               <input
@@ -871,8 +930,8 @@ export default function JobResultsPage() {
                 className="w-full"
               />
             </div>
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-900">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+              <p className="text-sm text-blue-900 dark:text-blue-100">
                 <strong>{bulkConfirmCount}件</strong>の未確認項目が一括確認されます
               </p>
             </div>
@@ -984,319 +1043,280 @@ export default function JobResultsPage() {
     </MainLayout>
   );
 
-  const renderSearchResults = () => (
-    <MainLayout>
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Link
-            href="/jobs"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{job.name} - 検索結果</h1>
-              <p className="text-gray-600">{job.results?.searchQuery}</p>
+  const renderScanResults = () => {
+    // Get active file info
+    const activeFile = job.files?.find(f => f.id === activeFileId) || job.files?.[0];
+    
+    // Prepare scan results with polygon data
+    const scanPolygonData = fileFilteredResults
+      .filter(r => r.polygon && r.polygon.length >= 3)
+      .map(r => ({
+        id: r.id,
+        polygon: r.polygon,
+        judgment: 'OK', // Scan results are neutral
+        type: r.elementType
+      }));
+    
+    return (
+      <div className="h-screen flex flex-col bg-[#F9FAFB] dark:bg-gray-900">
+        {/* Fixed Header */}
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/jobs"
+                className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {job.name} - BP Scan結果
+                </h1>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {fileFilteredResults.length}件のスキャン結果 {activeFile && `(${activeFile.name})`}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFileList(!showFileList)}
+                className={`p-2 rounded transition-colors ${showFileList ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                title={showFileList ? 'ファイル一覧を非表示' : 'ファイル一覧を表示'}
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setIsEditMode(!isEditMode)}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  isEditMode 
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' 
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                }`}
+              >
+                {isEditMode ? '編集モード' : '表示モード'}
+              </button>
               <Link href={`/jobs/${job.id}`}>
-                <Button variant="ghost" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-1.5">
                   <Info className="w-4 h-4" />
-                  メタデータを表示
+                  詳細
                 </Button>
               </Link>
-              <Input
-                placeholder="図面名で検索..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64"
-              />
+              <Button variant="primary" size="sm" className="gap-1.5">
+                <Download className="w-4 h-4" />
+                エクスポート
+              </Button>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Search Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card className="p-6 bg-purple-50 border-purple-200">
-            <p className="text-sm text-purple-600 mb-1">総画像数</p>
-            <p className="text-3xl font-bold text-gray-900">{job.results?.totalImages || 0}</p>
-          </Card>
-          <Card className="p-6 bg-blue-50 border-blue-200">
-            <p className="text-sm text-blue-600 mb-1">抽出要素数</p>
-            <p className="text-3xl font-bold text-gray-900">{job.results?.totalElements || 0}</p>
-          </Card>
-          <Card className="p-6 bg-green-50 border-green-200">
-            <p className="text-sm text-green-600 mb-1">マッチ数</p>
-            <p className="text-3xl font-bold text-gray-900">{filteredResults.length}</p>
-          </Card>
-        </div>
+        {/* Main Content - 3 Panel Layout */}
+        <div className="flex-1 overflow-hidden">
+          <PanelGroup direction="horizontal">
+            {/* Left Panel: File List */}
+            {showFileList && (
+              <>
+                <Panel defaultSize={15} minSize={12} maxSize={25}>
+                  <FileListPanel
+                    files={job.files || []}
+                    activeFileId={activeFileId}
+                    onFileSelect={handleFileSelect}
+                    resultsCountByFile={resultsCountByFile}
+                  />
+                </Panel>
+                <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary transition-colors cursor-col-resize" />
+              </>
+            )}
 
-        {/* Results Grid */}
-        <Card className="p-6">
-          {/* Filter Section */}
-          <div className="mb-6 pb-4 border-b border-gray-200">
-            <div className="space-y-4">
-              {/* Element Type Filters */}
-              <div>
-                <label className="text-xs font-medium text-gray-700 mb-2 block">
-                  要素タイプで絞り込み
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {['text', 'table', 'figure'].map(type => (
+            {/* Center Panel: Canvas with File Tabs */}
+            <Panel defaultSize={showFileList ? 55 : 65} minSize={40}>
+              <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+                {/* File Tabs */}
+                <FileTabs
+                  files={job.files || []}
+                  openedFileIds={openedFileIds}
+                  activeFileId={activeFileId}
+                  onTabSelect={handleFileSelect}
+                  onTabClose={handleTabClose}
+                />
+
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex-1" />
+                  <div className="flex items-center gap-1">
                     <button
-                      key={type}
-                      onClick={() => toggleElementType(type)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                        elementTypeFilters.has(type)
-                          ? 'bg-purple-600 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      onClick={handleZoomOut}
+                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                      title="ズームアウト"
                     >
-                      {type === 'text' ? '📝 テキスト' : type === 'table' ? '📋 表' : '🖼️ 図'}
+                      <ZoomOut className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                     </button>
-                  ))}
-                </div>
-              </div>
-              {/* Tag Filters */}
-              <div>
-                <label className="text-xs font-medium text-gray-700 mb-2 block">
-                  タグで絞り込み
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {['bom', 'title_block', 'dimension', 'section_view', 'tolerance', 'welding_symbol'].map(tag => (
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[50px] text-center">
+                      {Math.round(zoomLevel * 100)}%
+                    </span>
                     <button
-                      key={tag}
-                      onClick={() => toggleTagFilter(tag)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                        tagFilters.has(tag)
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      onClick={handleZoomIn}
+                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                      title="ズームイン"
                     >
-                      <Tag className="w-3 h-3 inline mr-1" />
-                      {tag.replace('_', ' ')}
+                      <ZoomIn className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                     </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            マッチした図面 ({filteredResults.length}件)
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredResults.map((result) => (
-              <div
-                key={result.id}
-                onClick={() => setSelectedSearchResult(result)}
-                className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
-              >
-                {result.preview && (
-                  <div className="relative h-40 bg-gray-100 rounded-lg overflow-hidden mb-3">
-                    <Image
-                      src={result.preview}
-                      alt={result.drawingName}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
+                    <button
+                      onClick={handleResetZoom}
+                      className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                    >
+                      リセット
+                    </button>
+                    {selectedResult && (
+                      <button
+                        onClick={() => handleResultSelect(selectedResult, { zoomToFit: true })}
+                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                        title="選択エリアにフィット"
+                      >
+                        <Maximize2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      </button>
+                    )}
                   </div>
-                )}
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-sm font-medium text-gray-900 flex-1">{result.drawingName}</h3>
-                  <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700 ml-2 shrink-0">
-                    {result.elementType}
-                  </span>
                 </div>
-                <p className="text-xs text-gray-700 mb-2 font-medium">{result.matchedElement}</p>
-                <p className="text-xs text-gray-500 mb-3 line-clamp-2">{result.snippet}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Page {result.page}</span>
-                  <span className="text-xs text-gray-500">
-                    信頼度: {(result.confidence * 100).toFixed(0)}%
+
+                {/* Canvas Area */}
+                <div 
+                  ref={canvasRef}
+                  className={`flex-1 overflow-hidden relative bg-gray-100 dark:bg-gray-950 ${isEditMode ? 'cursor-crosshair' : 'cursor-move'}`}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                >
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                      transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
+                      transformOrigin: 'center'
+                    }}
+                  >
+                    {activeFile?.preview ? (
+                      <div className="relative">
+                        <Image
+                          src={activeFile.preview}
+                          alt={activeFile.name}
+                          width={imageDimensions.width}
+                          height={imageDimensions.height}
+                          className="rounded shadow-lg"
+                          unoptimized
+                          onLoadingComplete={({ naturalWidth, naturalHeight }) => {
+                            setImageDimensions({ width: naturalWidth, height: naturalHeight });
+                          }}
+                        />
+                        {/* Polygon Overlays for scanned elements */}
+                        <PolygonOverlay
+                          polygons={showAllHighlights 
+                            ? scanPolygonData 
+                            : scanPolygonData.filter(p => p.id === selectedResult?.id)
+                          }
+                          containerWidth={imageDimensions.width}
+                          containerHeight={imageDimensions.height}
+                          imageWidth={imageDimensions.width}
+                          imageHeight={imageDimensions.height}
+                          scale={1}
+                          offsetX={0}
+                          offsetY={0}
+                          selectedPolygonId={selectedResult?.id}
+                          onPolygonSelect={(id) => {
+                            const result = fileFilteredResults.find(r => r.id === id);
+                            if (result) setSelectedResult(result);
+                          }}
+                          onPolygonDrag={handlePolygonDrag}
+                          isEditable={isEditMode}
+                          editMode="polygon"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500 dark:text-gray-400">
+                        <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                        <p>ファイルを選択してください</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Navigation Footer */}
+                <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    スクロール: ズーム | ドラッグ: パン | クリック: 選択
                   </span>
+                  {selectedResult && (
+                    <span className="text-gray-700 dark:text-gray-300 font-medium">
+                      選択中: {selectedResult.matchedElement || selectedResult.elementType}
+                    </span>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
+            </Panel>
 
-          {filteredResults.length === 0 && (
-            <div className="text-center py-12">
-              <Search className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">該当する図面が見つかりません</p>
-            </div>
-          )}
-        </Card>
+            <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary transition-colors cursor-col-resize" />
 
-        {/* Detail Modal */}
+            {/* Right Panel: Scan Items */}
+            <Panel defaultSize={30} minSize={20} maxSize={40}>
+              <ScanItemsPanel
+                results={fileFilteredResults.map(r => ({
+                  ...r,
+                  fileId: r.fileId || activeFileId
+                }))}
+                activeFileId={activeFileId}
+                selectedResultId={selectedResult?.id}
+                onResultSelect={handleResultSelect}
+                showAllHighlights={showAllHighlights}
+                onToggleShowAll={() => setShowAllHighlights(prev => !prev)}
+                autoZoom={autoZoom}
+                onToggleAutoZoom={() => setAutoZoom(prev => !prev)}
+              />
+            </Panel>
+          </PanelGroup>
+        </div>
+
+        {/* Detail Modal for scan results */}
         {selectedSearchResult && (
           <Modal
             isOpen={!!selectedSearchResult}
             onClose={() => setSelectedSearchResult(null)}
-            title="図面詳細"
+            title="要素詳細"
           >
-            <div className="space-y-6">
-              {/* Preview Image */}
+            <div className="space-y-4">
               {selectedSearchResult.preview && (
-                <div className="relative h-80 bg-gray-100 rounded-lg overflow-hidden">
+                <div className="relative h-60 bg-gray-100 rounded-lg overflow-hidden">
                   <Image
                     src={selectedSearchResult.preview}
-                    alt={selectedSearchResult.drawingName}
+                    alt={selectedSearchResult.matchedElement}
                     fill
                     className="object-contain"
                     unoptimized
                   />
                 </div>
               )}
-
-              {/* Metadata */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {selectedSearchResult.drawingName}
-                  </h3>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 font-medium">
-                      {selectedSearchResult.elementType}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      Page {selectedSearchResult.page}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      信頼度: {(selectedSearchResult.confidence * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* Matched Element */}
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <label className="text-xs font-semibold text-blue-900 mb-1 block">
-                    マッチした要素
-                  </label>
-                  <p className="text-sm text-gray-900 font-medium">
-                    {selectedSearchResult.matchedElement}
-                  </p>
-                </div>
-
-                {/* Snippet Context */}
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <label className="text-xs font-semibold text-gray-700 mb-1 block">
-                    コンテキスト
-                  </label>
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {selectedSearchResult.snippet}
-                  </p>
-                </div>
-
-                {/* Tags */}
-                {selectedSearchResult.tags && selectedSearchResult.tags.length > 0 && (
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 mb-2 block">
-                      タグ
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedSearchResult.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-300"
-                        >
-                          <Tag className="w-3 h-3 inline mr-1" />
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Additional Metadata */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">ファイル名</label>
-                    <p className="text-sm text-gray-900 font-medium">
-                      {selectedSearchResult.drawingName}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">要素タイプ</label>
-                    <p className="text-sm text-gray-900 font-medium">
-                      {selectedSearchResult.elementType}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">ページ番号</label>
-                    <p className="text-sm text-gray-900 font-medium">
-                      {selectedSearchResult.page}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">信頼度</label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-purple-600"
-                          style={{ width: `${selectedSearchResult.confidence * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-900 font-medium">
-                        {(selectedSearchResult.confidence * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
-                  <Button
-                    variant="primary"
-                    className="flex-1 gap-2"
-                    onClick={() => setShowImageViewer(true)}
-                  >
-                    <Eye className="w-4 h-4" />
-                    詳細ビューアーで開く
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="gap-2"
-                    onClick={() => {
-                      window.open(selectedSearchResult.preview, '_blank');
-                    }}
-                  >
-                    <Download className="w-4 h-4" />
-                    ダウンロード
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setSelectedSearchResult(null)}
-                  >
-                    閉じる
-                  </Button>
-                </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-2">{selectedSearchResult.matchedElement}</h3>
+                <p className="text-sm text-gray-600">{selectedSearchResult.snippet}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setSelectedSearchResult(null)}>
+                  閉じる
+                </Button>
               </div>
             </div>
           </Modal>
         )}
-
-        {/* Image Viewer */}
-        {showImageViewer && selectedSearchResult?.preview && (
-          <ImageViewer
-            src={selectedSearchResult.preview}
-            alt={selectedSearchResult.drawingName}
-            onClose={() => setShowImageViewer(false)}
-          />
-        )}
       </div>
-    </MainLayout>
-  );
+    );
+  };
 
   // Render appropriate view based on job type
   if (job.taskType === 'INSPECTION') {
     return renderInspectionResults();
   } else if (job.taskType === 'BOM') {
     return renderBOMResults();
-  } else if (job.taskType === 'SEARCH') {
-    return renderSearchResults();
+  } else if (job.taskType === 'SCAN') {
+    return renderScanResults();
   }
 
   return null;

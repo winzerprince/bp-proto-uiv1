@@ -20,7 +20,7 @@ export default function JobsListContent() {
   // Get initial filter from URL - only compute once
   const initialTypeFilter = useMemo(() => {
     const typeParam = searchParams.get('type');
-    return (typeParam && ['INSPECTION', 'BOM', 'SEARCH'].includes(typeParam)) ? typeParam : 'all';
+    return (typeParam && ['INSPECTION', 'BOM', 'SCAN'].includes(typeParam)) ? typeParam : 'all';
   }, [searchParams]);
   
   const [taskTypeFilter, setTaskTypeFilter] = useState(initialTypeFilter);
@@ -80,9 +80,9 @@ export default function JobsListContent() {
   // Get page title based on task type filter
   const getPageTitle = () => {
     const titles = {
-      INSPECTION: '検図ジョブ',
-      BOM: 'BOM生成ジョブ',
-      SEARCH: '図面検索ジョブ',
+      INSPECTION: 'BP Checkジョブ',
+      BOM: 'BP Bomジョブ',
+      SCAN: 'BP Scanジョブ',
       all: 'ジョブ一覧'
     };
     return titles[taskTypeFilter] || titles.all;
@@ -158,10 +158,10 @@ export default function JobsListContent() {
               <MdFilterAlt className="w-16 h-16 mx-auto" />
             </div>
             <p className="text-foreground mb-2 font-medium">
-              ジョブが見つかりません
+              トレイが見つかりません
             </p>
             <p className="text-sm text-foreground-light">
-              フィルターを変更するか、新しいジョブを作成してください
+              フィルターを変更するか、新しいトレイを作成してください
             </p>
           </Card>
         ) : (
@@ -171,7 +171,7 @@ export default function JobsListContent() {
                 <thead className="bg-muted border-b border-border">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
-                      ジョブ名
+                      トレイ名
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-foreground-light uppercase tracking-wider">
                       タスクタイプ

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Upload, FileText, CircleCheckBig, Search, X, AlertCircle, Plus, Tag, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, CircleCheckBig, ScanLine, X, AlertCircle, Plus, Tag, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout';
 import { Card, Button, Input, Textarea, Select, LoadingSpinner } from '@/components/ui';
@@ -24,7 +24,7 @@ const BOM_WORKFLOWS = [
   { value: 'multi_level_bom', label: '階層BOM自動生成' },
 ];
 
-const SEARCH_TAGS = [
+const SCAN_TAGS = [
   { id: 'bom', label: 'BOM', type: 'table' },
   { id: 'title_block', label: 'title_block', type: 'text' },
   { id: 'dimension', label: 'dimension', type: 'text' },
@@ -43,8 +43,6 @@ function JobCreationForm() {
   const [workflow, setWorkflow] = useState('');
   const [tags, setTags] = useState([]);
   const [files, setFiles] = useState([]);
-  const [realImages, setRealImages] = useState([]);
-  const [drawings, setDrawings] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [errors, setErrors] = useState({});
@@ -74,8 +72,8 @@ function JobCreationForm() {
         return CircleCheckBig;
       case 'BOM':
         return FileText;
-      case 'SEARCH':
-        return Search;
+      case 'SCAN':
+        return ScanLine;
       default:
         return FileText;
     }
@@ -91,32 +89,6 @@ function JobCreationForm() {
       progress: 0,
     }));
     setFiles([...files, ...newFiles]);
-  };
-
-  const handleRealImageSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    const newFiles = selectedFiles.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      name: file.name,
-      size: file.size,
-      progress: 0,
-      type: 'real',
-    }));
-    setRealImages([...realImages, ...newFiles]);
-  };
-
-  const handleDrawingSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    const newFiles = selectedFiles.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      name: file.name,
-      size: file.size,
-      progress: 0,
-      type: 'drawing',
-    }));
-    setDrawings([...drawings, ...newFiles]);
   };
 
   const handleRemoveFile = (fileId) => {
@@ -137,7 +109,7 @@ function JobCreationForm() {
       newErrors.taskType = 'タスク種別を選択してください';
     }
     if (!jobName.trim()) {
-      newErrors.jobName = selectedTaskType === 'SEARCH' ? 'データセットタイトルを入力してください' : 'ジョブ名を入力してください';
+      newErrors.jobName = selectedTaskType === 'SCAN' ? 'スキャンタイトルを入力してください' : 'トレイ名を入力してください';
     }
     
     if (selectedTaskType === 'INSPECTION' && !workflow) {
@@ -147,14 +119,7 @@ function JobCreationForm() {
       newErrors.workflow = 'ワークフローを選択してください';
     }
     
-    if (selectedTaskType === 'INSPECTION') {
-      if (realImages.length === 0 && !useSampleFiles) {
-        newErrors.realImages = '実画像をアップロードしてください';
-      }
-      if (drawings.length === 0 && !useSampleFiles) {
-        newErrors.drawings = '図面をアップロードしてください';
-      }
-    } else if (files.length === 0 && !useSampleFiles) {
+    if (files.length === 0 && !useSampleFiles) {
       newErrors.files = 'ファイルをアップロードするか、サンプルファイルを選択してください';
     }
 
@@ -210,7 +175,7 @@ function JobCreationForm() {
             戻る
           </button>
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {selectedTaskType === 'SEARCH' ? '新しいデータセットを作成' : '新しいジョブを作成'}
+            {selectedTaskType === 'SCAN' ? '新しいBP Scanを作成' : '新しいトレイを作成'}
           </h1>
           <p className="text-foreground-light">
             タスクの詳細を設定し、ファイルをアップロードしてください
@@ -275,13 +240,13 @@ function JobCreationForm() {
               {/* Job Name */}
               <div className="mb-6">
                 <Input
-                  label={selectedTaskType === 'SEARCH' ? "データセットタイトル" : "ジョブ名"}
+                  label={selectedTaskType === 'SCAN' ? "スキャンタイトル" : "トレイ名"}
                   value={jobName}
                   onChange={(e) => {
                     setJobName(e.target.value);
                     setErrors({ ...errors, jobName: '' });
                   }}
-                  placeholder={selectedTaskType === 'SEARCH' ? "例: Q4 2025 技術図面解析" : "例: 製品A - 検図"}
+                  placeholder={selectedTaskType === 'SCAN' ? "例: Q4 2025 図面スキャン" : "例: 製品A - 検図"}
                   error={errors.jobName}
                   required
                 />
@@ -333,14 +298,14 @@ function JobCreationForm() {
                 </div>
               )}
 
-              {/* Element Tags for SEARCH */}
-              {selectedTaskType === 'SEARCH' && (
+              {/* Element Tags for SCAN */}
+              {selectedTaskType === 'SCAN' && (
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-foreground-light mb-2">
                     要素タグ
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {SEARCH_TAGS.map(tag => (
+                    {SCAN_TAGS.map(tag => (
                       <button
                         key={tag.id}
                         onClick={() => toggleTag(tag.id)}
@@ -361,8 +326,8 @@ function JobCreationForm() {
                 </div>
               )}
 
-              {/* Description and Priority for non-SEARCH tasks */}
-              {selectedTaskType !== 'SEARCH' && (
+              {/* Description and Priority for non-SCAN tasks */}
+              {selectedTaskType !== 'SCAN' && (
                 <>
                   <div className="mb-6">
                     <Textarea
@@ -389,7 +354,7 @@ function JobCreationForm() {
               )}
 
               {/* PNG Conversion Option */}
-              {selectedTaskType !== 'SEARCH' && (
+              {selectedTaskType !== 'SCAN' && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900 rounded-lg">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
@@ -457,78 +422,14 @@ function JobCreationForm() {
                 </label>
               </div>
 
-              {/* Drag and Drop Zone */}
-              {selectedTaskType === 'INSPECTION' ? (
-                <div className="space-y-4 mb-4">
-                  {/* Real Images Upload */}
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-light mb-2">
-                      実画像アップロード <span className="text-red-500">*</span>
-                    </label>
-                    <label className="block w-full">
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp"
-                        onChange={handleRealImageSelect}
-                        className="hidden"
-                      />
-                      <div className="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg p-4 text-center hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 cursor-pointer bg-blue-50/50 dark:bg-blue-950/30">
-                        <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-foreground">
-                          実画像を選択
-                        </p>
-                        <p className="text-xs text-foreground-light mt-0.5">
-                          現場写真・施工写真
-                        </p>
-                      </div>
-                    </label>
-                    {errors.realImages && (
-                      <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
-                        <AlertCircle className="w-3 h-3" />
-                        <span>{errors.realImages}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Drawings Upload */}
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-light mb-2">
-                      図面アップロード <span className="text-red-500">*</span>
-                    </label>
-                    <label className="block w-full">
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp"
-                        onChange={handleDrawingSelect}
-                        className="hidden"
-                      />
-                      <div className="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-lg p-4 text-center hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all duration-200 cursor-pointer bg-purple-50/50 dark:bg-purple-950/30">
-                        <Upload className="w-6 h-6 text-purple-600 dark:text-purple-400 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-foreground">
-                          図面を選択
-                        </p>
-                        <p className="text-xs text-foreground-light mt-0.5">
-                          設計図・施工図
-                        </p>
-                      </div>
-                    </label>
-                    {errors.drawings && (
-                      <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
-                        <AlertCircle className="w-3 h-3" />
-                        <span>{errors.drawings}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
+              {/* Drag and Drop Zone - Single multi-file upload for all task types */}
+              {(
                 <div className="mb-4">
                   <label className="block w-full">
                     <input
                       type="file"
                       multiple
-                      accept={selectedTaskType === 'SEARCH' ? "image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp" : ".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.xlsx,.xls"}
+                      accept={selectedTaskType === 'SCAN' ? "image/*,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp" : ".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.xlsx,.xls"}
                       onChange={handleFileSelect}
                       className="hidden"
                     />
@@ -553,96 +454,7 @@ function JobCreationForm() {
               )}
 
               {/* File List with Preview */}
-              {selectedTaskType === 'INSPECTION' ? (
-                <>
-                  {realImages.length > 0 && (
-                    <div className="mb-4">
-                      <h3 className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                        実画像 ({realImages.length}件)
-                      </h3>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {realImages.map((file) => (
-                          <div
-                            key={file.id}
-                            className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200"
-                          >
-                            <div className="flex items-start gap-2">
-                              <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-foreground truncate">
-                                  {file.name}
-                                </p>
-                                <p className="text-xs text-foreground-light">
-                                  {formatFileSize(file.size)}
-                                </p>
-                                {uploadProgress[file.id] !== undefined && (
-                                  <div className="w-full h-1 bg-blue-200 dark:bg-blue-800 rounded-full mt-1 overflow-hidden">
-                                    <div
-                                      className="h-full bg-blue-600 transition-all duration-300"
-                                      style={{ width: `${uploadProgress[file.id]}%` }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => setRealImages(realImages.filter(f => f.id !== file.id))}
-                                className="text-foreground-lighter hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
-                                title="削除"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {drawings.length > 0 && (
-                    <div className="mb-4">
-                      <h3 className="text-xs font-medium text-purple-700 dark:text-purple-400 mb-2 flex items-center gap-1">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full" />
-                        図面 ({drawings.length}件)
-                      </h3>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {drawings.map((file) => (
-                          <div
-                            key={file.id}
-                            className="p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200"
-                          >
-                            <div className="flex items-start gap-2">
-                              <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-foreground truncate">
-                                  {file.name}
-                                </p>
-                                <p className="text-xs text-foreground-light">
-                                  {formatFileSize(file.size)}
-                                </p>
-                                {uploadProgress[file.id] !== undefined && (
-                                  <div className="w-full h-1 bg-purple-200 dark:bg-purple-800 rounded-full mt-1 overflow-hidden">
-                                    <div
-                                      className="h-full bg-purple-600 transition-all duration-300"
-                                      style={{ width: `${uploadProgress[file.id]}%` }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => setDrawings(drawings.filter(f => f.id !== file.id))}
-                                className="text-foreground-lighter hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
-                                title="削除"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : files.length > 0 && (
+              {files.length > 0 && (
                 <div className="mb-4">
                   <h3 className="text-xs font-medium text-foreground-light mb-2">
                     アップロード ({files.length}件)
@@ -697,7 +509,7 @@ function JobCreationForm() {
               )}
 
               <p className="text-xs text-foreground-lighter mb-4">
-                {selectedTaskType === 'SEARCH' 
+                {selectedTaskType === 'SCAN' 
                   ? '対応形式: JPG, PNG, GIF, BMP, TIFF, WebP'
                   : '対応形式: PDF, PNG, JPEG, TIFF, BMP, Excel'}
               </p>
@@ -710,7 +522,7 @@ function JobCreationForm() {
                   disabled={uploading}
                   className="w-full"
                 >
-                  {uploading ? 'アップロード中...' : 'ジョブを作成して実行'}
+                  {uploading ? 'アップロード中...' : 'トレイを作成して実行'}
                 </Button>
                 <Button
                   variant="secondary"

@@ -1,6 +1,6 @@
 import RedirectTo from '@/components/RedirectTo';
 
-// This page redirects to the new BP Scan route
-export default function SearchPage() {
+// BP Scan - Blueprint scanning and tagging task
+export default function ScanPage() {
   return <RedirectTo to="/jobs?type=SCAN" />;
 }

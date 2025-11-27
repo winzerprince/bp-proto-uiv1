@@ -230,6 +230,7 @@ export const Badge = ({ children, variant = 'default', className = '' }) => {
     success: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
     warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
     danger: "bg-destructive/10 text-destructive border-destructive/20",
+    info: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
     outline: "border-border text-foreground",
   };
   
@@ -262,6 +263,7 @@ export const TaskTypeBadge = ({ taskType }) => {
     INSPECTION: { variant: 'default', label: '検図' },
     BOM: { variant: 'success', label: 'BOM生成' },
     SEARCH: { variant: 'warning', label: '図面検索' },
+    SCAN: { variant: 'info', label: 'スキャン' },
   };
   
   const config = taskConfig[taskType] || taskConfig.INSPECTION;

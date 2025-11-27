@@ -130,19 +130,19 @@ export default function DashboardPage() {
                 <Link href="/jobs?type=INSPECTION" className="block">
                   <Button variant="outline" className="w-full justify-center gap-2 h-auto py-3">
                     <CircleCheckBig className="w-5 h-5" />
-                    <span>検図ジョブ一覧</span>
+                    <span>BP Checkトレイ</span>
                   </Button>
                 </Link>
                 <Link href="/jobs?type=BOM" className="block">
                   <Button variant="outline" className="w-full justify-center gap-2 h-auto py-3">
                     <FileText className="w-5 h-5" />
-                    <span>BOMジョブ一覧</span>
+                    <span>BP Bomトレイ</span>
                   </Button>
                 </Link>
-                <Link href="/jobs?type=SEARCH" className="block">
+                <Link href="/jobs?type=SCAN" className="block">
                   <Button variant="outline" className="w-full justify-center gap-2 h-auto py-3">
                     <Plus className="w-5 h-5" />
-                    <span>検索ジョブ一覧</span>
+                    <span>BP Scanトレイ</span>
                   </Button>
                 </Link>
               </div>
