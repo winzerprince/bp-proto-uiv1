@@ -719,9 +719,9 @@ export function AnnotoriousOverlay({
         )}
       </div>
 
-      {/* Editing Toolbar - only show when editable */}
-      {isEditable && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-1.5 z-20 border border-gray-200 dark:border-gray-700">
+      {/* Editing Toolbar - only show when editable and NOT in scan mode */}
+      {isEditable && !scanMode && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white dark:bg-gray-800 rounded-sm shadow-lg p-1.5 z-20 border border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setActiveTool(TOOLS.SELECT)}
             className={`p-2 rounded transition-colors ${activeTool === TOOLS.SELECT ? 'bg-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
@@ -778,7 +778,7 @@ export function AnnotoriousOverlay({
       )}
 
       {/* Zoom Controls */}
-      <div className="absolute bottom-4 right-4 flex gap-1.5 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-1.5 z-10 border border-gray-200 dark:border-gray-700">
+      <div className="absolute bottom-4 right-4 flex gap-1.5 bg-white dark:bg-gray-800 rounded-sm shadow-lg p-1.5 z-10 border border-gray-200 dark:border-gray-700">
         <button
           onClick={() => setScale(s => Math.min(s * 1.25, 5))}
           className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
@@ -823,7 +823,7 @@ export function AnnotoriousOverlay({
 
       {/* Instructions overlay for polygon drawing */}
       {isEditable && activeTool === TOOLS.POLYGON && drawingPoints.length > 0 && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white text-sm px-4 py-2 rounded-lg z-20">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white text-sm px-4 py-2 rounded-sm z-20">
           クリックで頂点を追加 • ダブルクリックで完成 • {drawingPoints.length}点
         </div>
       )}

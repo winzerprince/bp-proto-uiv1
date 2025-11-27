@@ -383,7 +383,7 @@ export function KonvaAnnotationOverlay({
       </Stage>
 
       {/* Zoom Controls */}
-      <div className="absolute bottom-4 right-4 flex gap-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-2">
+      <div className="absolute bottom-4 right-4 flex gap-2 bg-white dark:bg-gray-800 rounded-sm shadow-lg p-2">
         <button
           onClick={() => setScale(s => Math.min(s * 1.2, 10))}
           className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"

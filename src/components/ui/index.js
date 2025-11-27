@@ -344,7 +344,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
       />
       
       {/* Modal */}
-      <div className={`relative bg-card border border-border rounded-lg shadow-lg ${sizes[size]} w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col`}>
+      <div className={`relative bg-card border border-border rounded-sm shadow-lg ${sizes[size]} w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col`}>
         {/* Header */}
         {title && (
           <div className="flex items-center justify-between p-6 border-b border-border">

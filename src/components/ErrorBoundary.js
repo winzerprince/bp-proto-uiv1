@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
           <div className="max-w-md w-full">
-            <div className="bg-card border border-border rounded-lg p-8 text-center">
+            <div className="bg-card border border-border rounded-sm p-8 text-center">
               {/* Error Icon */}
               <div className="flex justify-center mb-4">
                 <div className="p-3 rounded-full bg-destructive/10">

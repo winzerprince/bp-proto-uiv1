@@ -17,8 +17,7 @@ import {
   Clock,
   Edit3,
   Info,
-  Layers,
-  Plus
+  Layers
 } from 'lucide-react';
 
 const ELEMENT_TYPE_ICONS = {
@@ -73,7 +72,6 @@ export function ScanItemsPanel({
   onResultSelect,
   onEdit,
   onDelete,
-  onAdd,
   onUpdateAction,
   showAllHighlights = true,
   onToggleShowAll,
@@ -152,6 +150,9 @@ export function ScanItemsPanel({
   };
 
   const handleItemClick = (result) => {
+    // Toggle expand when clicking the card
+    toggleExpand(result.id);
+    // Also select the item and zoom if enabled
     onResultSelect?.(result, { zoomToFit: autoZoom });
   };
 
@@ -167,18 +168,9 @@ export function ScanItemsPanel({
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Layers className="w-4 h-4 text-purple-500" />
-              スキャン結果
+              スキャン範囲内の要素
             </h3>
             <div className="flex items-center gap-1">
-              {onAdd && (
-                <button
-                  onClick={onAdd}
-                  className="p-1.5 rounded text-primary hover:bg-primary/10 transition-colors"
-                  title="新規追加"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              )}
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`p-1.5 rounded transition-colors ${showSettings ? 'bg-primary/10 text-primary' : 'text-foreground-light hover:bg-gray-100 dark:hover:bg-gray-800'}`}
@@ -207,7 +199,7 @@ export function ScanItemsPanel({
 
           {/* Settings Panel */}
           {showSettings && (
-            <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
+            <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-sm space-y-2">
               <button
                 onClick={onToggleAutoZoom}
                 className="w-full flex items-center justify-between px-2 py-1.5 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -329,7 +321,7 @@ export function ScanItemsPanel({
                 key={result.id}
                 onClick={() => handleItemClick(result)}
                 className={`
-                  rounded-lg border transition-all duration-150 cursor-pointer
+                  rounded-sm border transition-all duration-150 cursor-pointer
                   ${isSelected 
                     ? `ring-2 ${typeConfig.ring} ${typeConfig.border} ${typeConfig.bg}` 
                     : `border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800`
@@ -391,23 +383,14 @@ export function ScanItemsPanel({
                     {result.aiComment}
                   </p>
 
-                  {/* Expand/Collapse Button */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleExpand(result.id); }}
-                    className="flex items-center gap-1 mt-2 text-[10px] text-primary hover:text-primary-dark font-medium"
-                  >
+                  {/* Expand/Collapse Indicator */}
+                  <div className="flex items-center justify-center mt-2">
                     {isExpanded ? (
-                      <>
-                        <ChevronUp className="w-3 h-3" />
-                        閉じる
-                      </>
+                      <ChevronUp className="w-4 h-4 text-foreground-light" />
                     ) : (
-                      <>
-                        <ChevronDown className="w-3 h-3" />
-                        詳細を表示
-                      </>
+                      <ChevronDown className="w-4 h-4 text-foreground-light" />
                     )}
-                  </button>
+                  </div>
                 </div>
 
                 {/* Expanded Content */}

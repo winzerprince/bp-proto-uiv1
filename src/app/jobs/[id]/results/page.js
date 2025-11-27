@@ -995,12 +995,29 @@ export default function JobResultsPage() {
                 onDelete={handleDeleteInspectionItem}
                 onAdd={handleAddInspectionItem}
                 onUpdateAction={handleUpdateUserAction}
+                onUpdateResult={(id, updates) => {
+                  // Update the result with new text/judgment values
+                  setInternalResults(prev => {
+                    const exists = prev.find(r => r.id === id);
+                    if (exists) {
+                      return prev.map(r => r.id === id ? { ...r, ...updates } : r);
+                    }
+                    // If updating an original result, add to internal results
+                    const original = results.find(r => r.id === id);
+                    if (original) {
+                      return [...prev, { ...original, ...updates }];
+                    }
+                    return prev;
+                  });
+                }}
                 showAllHighlights={showAllHighlights}
                 onToggleShowAll={() => setShowAllHighlights(prev => !prev)}
                 autoZoom={autoZoom}
                 onToggleAutoZoom={() => setAutoZoom(prev => !prev)}
                 confidenceFilter={confidenceFilter}
                 onConfidenceFilterChange={setConfidenceFilter}
+                isEditMode={isEditMode}
+                onEditModeChange={setIsEditMode}
               />
             </Panel>
           </PanelGroup>
@@ -1158,16 +1175,6 @@ export default function JobResultsPage() {
     
     // Use scanFilteredResults (filtered by selection box) for the items list
     const displayResults = scanFilteredResults;
-    
-    // Calculate item counts by element type
-    const itemCounts = useMemo(() => {
-      const counts = { text: 0, table: 0, figure: 0, total: displayResults.length };
-      displayResults.forEach(r => {
-        const type = r.elementType?.toLowerCase();
-        if (counts[type] !== undefined) counts[type]++;
-      });
-      return counts;
-    }, [displayResults]);
     
     return (
       <div className="h-screen flex flex-col bg-[#F9FAFB] dark:bg-gray-900">
@@ -1331,25 +1338,6 @@ export default function JobResultsPage() {
                     }
                     return prev;
                   });
-                }}
-                onAdd={() => {
-                  const newItem = {
-                    id: `scan-new-${Date.now()}`,
-                    fileId: activeFileId,
-                    fileName: job.files?.find(f => f.id === activeFileId)?.name || 'unknown',
-                    page: 1,
-                    elementType: 'figure',
-                    tagName: '新規要素',
-                    tagCategory: 'detail_view',
-                    confidence: 0.5,
-                    aiComment: 'AI分析中...',
-                    userAction: 'pending',
-                    userComment: '',
-                    polygon: [[150, 150], [350, 150], [350, 350], [150, 350]],
-                    boundingBox: { x: 150, y: 150, width: 200, height: 200 }
-                  };
-                  setInternalResults(prev => [...prev, newItem]);
-                  setSelectedResult(newItem);
                 }}
                 showAllHighlights={showAllHighlights}
                 onToggleShowAll={() => setShowAllHighlights(prev => !prev)}

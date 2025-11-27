@@ -114,9 +114,9 @@ function SidebarContent({ isOpen, onClose }) {
         },
         {
           icon: SearchIcon,
-          label: "図面検索",
-          href: "/jobs?type=SEARCH",
-          matchType: "SEARCH",
+          label: "BPスキャン",
+          href: "/jobs?type=SCAN",
+          matchType: "SCAN",
         },
       ],
     },
